@@ -3,3 +3,10 @@ dist/
 web-ext-artifacts/
 *.log
 .DS_Store
+
+# Ruleset signing keys must never be committed (docs/ARCHITETTURA.md,
+# "Firma del ruleset"). Defense in depth only - the private key is meant to
+# be generated and kept outside this repository in the first place.
+*.pem
+*.key
+*private*.jwk

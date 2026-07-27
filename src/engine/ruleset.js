@@ -3,13 +3,17 @@
  *
  * - Bundled rules (shipped inside the package, owned by src/rules/) are the
  *   always-available fallback: the extension works on first run and offline.
- * - A remote ruleset is fetched periodically (every 12h at most), validated
- *   against the schema, and cached in storage.local.
- * - A candidate ruleset is rejected if: the schema is invalid, the
- *   schemaVersion is unknown, or the version is not monotonically
- *   increasing (see isNewerRuleset() for how "version" is interpreted -
- *   flagged to the orchestrator, the schema has no explicit version
- *   counter).
+ *   They are implicitly trusted (protected by the extension store's own
+ *   signature) and are never run through signature verification.
+ * - A remote ruleset is fetched periodically (every 12h at most) as raw
+ *   bytes, its detached signature verified (src/engine/signature.js),
+ *   validated against the schema, checked for a strictly increasing
+ *   `rulesetVersion`, and only then cached in storage.local.
+ * - A candidate ruleset is rejected if: the signature does not verify, the
+ *   schema is invalid, the schemaVersion is unknown, or `rulesetVersion` is
+ *   not strictly greater than the cached ruleset's. A signature failure
+ *   discards the candidate before it is even parsed as JSON - see
+ *   fetchAndValidateRemoteRuleset().
  * - On ANY error, the engine stays on the last valid ruleset. It must never
  *   degrade to "no rules".
  *
@@ -23,6 +27,7 @@
  */
 
 import { storageLocalGet, storageLocalSet, getExtensionUrl } from './browser-api.js';
+import { verifyDetached, base64ToBytes } from './signature.js';
 
 // Single point of configuration for the remote ruleset endpoint.
 export const REMOTE_RULESET_URL = 'https://rules.cookie-refuser.example/ruleset.json';
@@ -66,6 +71,7 @@ export function validateRuleset(data) {
     if (!isPlainObject(data)) return false;
     if (!SUPPORTED_SCHEMA_VERSIONS.includes(data.schemaVersion)) return false;
     if (typeof data.generatedAt !== 'string' || Number.isNaN(Date.parse(data.generatedAt))) return false;
+    if (!Number.isInteger(data.rulesetVersion)) return false;
     if (!Array.isArray(data.cmps)) return false;
     return data.cmps.every(isCmpLike);
   } catch {
@@ -74,20 +80,18 @@ export function validateRuleset(data) {
 }
 
 /**
- * "Monotonically increasing version" check. The schema (docs/ARCHITETTURA.md)
- * only carries `generatedAt`, not a dedicated incrementing version counter -
- * see the report to the orchestrator. `generatedAt` is used as the version
- * signal: a candidate must be strictly newer than the ruleset currently
- * cached, otherwise it is rejected as stale/rollback.
+ * "Monotonically increasing version" check, per docs/ARCHITETTURA.md:
+ * `rulesetVersion` (integer) is the version signal, not `generatedAt` -
+ * the latter depends on the server's clock and is ambiguous on rollback.
+ * A candidate is accepted only if its `rulesetVersion` is strictly greater
+ * than the currently cached ruleset's.
  */
 export function isNewerRuleset(candidate, current) {
   if (!current) return true;
   try {
-    const candidateTime = Date.parse(candidate.generatedAt);
-    const currentTime = Date.parse(current.generatedAt);
-    if (Number.isNaN(candidateTime)) return false;
-    if (Number.isNaN(currentTime)) return true;
-    return candidateTime > currentTime;
+    if (!Number.isInteger(candidate.rulesetVersion)) return false;
+    if (!Number.isInteger(current.rulesetVersion)) return true;
+    return candidate.rulesetVersion > current.rulesetVersion;
   } catch {
     return false;
   }
@@ -120,12 +124,24 @@ async function persistRuleset(ruleset) {
   await storageLocalSet({ [STORAGE_KEY_RULESET]: ruleset });
 }
 
+// Detached signature for REMOTE_RULESET_URL, fetched as base64 text.
+const REMOTE_RULESET_SIGNATURE_URL = `${REMOTE_RULESET_URL}.sig`;
+
 /**
  * Fetches the remote ruleset (a plain, parameter-free GET - see privacy
- * constraints in docs/ARCHITETTURA.md) and validates it against
- * `currentRuleset`. Returns the new ruleset only if it is schema-valid AND
- * strictly newer; otherwise returns null, leaving the caller on its current
- * ruleset. Never throws.
+ * constraints in docs/ARCHITETTURA.md) together with its detached
+ * signature, and validates it against `currentRuleset`.
+ *
+ * Security-critical order, per docs/ARCHITETTURA.md - never reorder this:
+ *   1. Download the ruleset as raw bytes (not `.json()`).
+ *   2. Download the detached signature (base64 text).
+ *   3. Verify the signature against those exact bytes.
+ *   4. Only if the signature is valid: parse JSON, run schema validation,
+ *      then check `rulesetVersion` is strictly newer.
+ * An unauthenticated payload is never parsed, let alone acted upon.
+ *
+ * Returns the new ruleset only if every step above succeeds; otherwise
+ * returns null, leaving the caller on its current ruleset. Never throws.
  */
 export async function fetchAndValidateRemoteRuleset(currentRuleset) {
   // Mark the attempt up front (success or failure) so a persistently
@@ -136,8 +152,29 @@ export async function fetchAndValidateRemoteRuleset(currentRuleset) {
   try {
     const response = await fetch(REMOTE_RULESET_URL, { method: 'GET', cache: 'no-store' });
     if (!response || !response.ok) return null;
+    const payloadBytes = await response.arrayBuffer();
 
-    const data = await response.json();
+    const signatureResponse = await fetch(REMOTE_RULESET_SIGNATURE_URL, { method: 'GET', cache: 'no-store' });
+    if (!signatureResponse || !signatureResponse.ok) return null;
+    const signatureBase64 = (await signatureResponse.text()).trim();
+
+    let signatureBytes;
+    try {
+      signatureBytes = base64ToBytes(signatureBase64);
+    } catch {
+      return null; // Malformed base64 - never let a bad signature reach verification/parsing.
+    }
+
+    const verified = await verifyDetached(payloadBytes, signatureBytes);
+    if (!verified) return null;
+
+    let data;
+    try {
+      data = JSON.parse(new TextDecoder().decode(payloadBytes));
+    } catch {
+      return null;
+    }
+
     if (!validateRuleset(data)) return null;
     if (!isNewerRuleset(data, currentRuleset)) return null;
 
@@ -164,7 +201,7 @@ export async function getActiveRuleset() {
   // Last-resort defensive default: only reached if both the cache and the
   // bundled package are unavailable/corrupt, which should not happen in a
   // correctly packaged extension.
-  return { schemaVersion: 1, generatedAt: new Date(0).toISOString(), cmps: [] };
+  return { schemaVersion: 1, generatedAt: new Date(0).toISOString(), rulesetVersion: 0, cmps: [] };
 }
 
 /**
