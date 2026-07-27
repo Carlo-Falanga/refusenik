@@ -36,26 +36,40 @@ src/ui/       popup and report button
 test/         unit tests and the rules/engine contract tests
 ```
 
-## Development
+## Building and running
+
+These are the exact steps to reproduce the package from a clean checkout.
 
 ```
-npm install
-npm test
+node --version        # v24.14.0 is the minimum tested version
+npm ci                # installs exactly the versions pinned in package-lock.json
+npm run build         # bundles the extension into dist/
+npm test              # unit and contract tests, on Node's built-in runner
 ```
 
-Tests run on Node's built-in runner. There are no runtime dependencies; `jsdom`
-is used for tests only.
-
-## Building and running the extension
+Two further scripts are useful while working on it:
 
 ```
-npm run build         # bundles content.js/background.js with esbuild into dist/
 npm run lint:ext      # runs web-ext lint against dist/
 npm run start:firefox # launches Firefox with the extension loaded from dist/
 ```
 
-`dist/` is a disposable build artifact (git-ignored, never committed): the
-committed sources are `manifest.json`, `build.mjs` and `src/`.
+`npm run build` bundles `src/engine/content.js`, `src/engine/background.js` and
+`src/ui/popup.js` with esbuild, copies `manifest.json`, the popup markup and
+styles, `_locales/` and `icons/` as-is, and resolves `src/rules/rules.json`
+against `src/rules/labels.json` into the fully literal
+`dist/rules/ruleset.json` that ships in the package.
+
+`dist/` is a disposable build artifact, git-ignored and never committed: the
+committed sources are `manifest.json`, `build.mjs` and `src/`. Deleting `dist/`
+and re-running the commands above rebuilds it from those sources alone, with
+the tool versions pinned by the lockfile.
+
+There are no runtime dependencies; `jsdom` is used for tests only. All build
+tooling — esbuild, web-ext and Node's own test runner — is open source and runs
+entirely locally. No web service or remote build step is involved at any point.
+
+## How the extension runs
 
 The background runs as a non-persistent Firefox MV3 event page (Firefox does
 not support service workers for extensions). It owns the ruleset - loading,
@@ -67,3 +81,10 @@ and content scripts only ever ask it for the active ruleset over
 
 Rules for several CMPs are adapted from [Consent-O-Matic](https://github.com/cavi-au/Consent-O-Matic)
 (MIT). See `src/rules/ATTRIBUTIONS.md` for the full notice.
+
+## License
+
+Refusenik is licensed under the GNU General Public License v3.0 or later
+(GPL-3.0-or-later). See `LICENSE` for the full text and
+`src/rules/ATTRIBUTIONS.md` for third-party licensing notices on the rules
+adapted from Consent-O-Matic.

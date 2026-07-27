@@ -63,3 +63,20 @@ usano questi due CMP:
 - DataGrail: `https://www.bedbathandbeyond.com` (cliente DataGrail confermato)
 
 Nessun contenuto Consent-O-Matic è stato usato per questi due CMP.
+
+## Compatibilità con la licenza GPL-3.0-or-later del progetto
+
+Questo progetto è distribuito nel suo insieme sotto **GPL-3.0-or-later** (vedi `LICENSE`
+nella radice del repository). Di seguito una nota di tracciabilità sulla compatibilità
+con il materiale MIT descritto sopra, non una consulenza legale.
+
+- La **MIT License è compatibile** con la GPL-3.0: un'opera che incorpora o adatta
+  codice MIT può essere ridistribuita come parte di un progetto più ampio rilasciato
+  sotto GPL-3.0-or-later.
+- L'**avviso di copyright MIT** riprodotto in questo file resta **obbligatorio** e deve
+  essere conservato così com'è, anche nell'opera distribuita sotto GPL: la compatibilità
+  con la GPL non esime dal rispetto degli obblighi della licenza MIT di origine.
+- La GPL-3.0-or-later si applica **all'insieme del progetto** così come distribuito qui,
+  non retroattivamente al materiale Consent-O-Matic a monte: il repository originale di
+  Consent-O-Matic rimane sotto la propria licenza MIT, indipendentemente da come viene
+  usato qui.
