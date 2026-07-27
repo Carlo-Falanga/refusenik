@@ -1,0 +1,13 @@
+{
+  "name": "cookie-refuser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebExtension engine that automatically refuses cookie consent banners on known CMPs.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  }
+}

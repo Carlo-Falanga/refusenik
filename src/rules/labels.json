@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "note": "Tabella multilingua per il campo Selector.textMatch (vedi docs/ARCHITETTURA.md). Ogni concetto elenca varianti reali osservate su CMP live o traduzioni linguistiche standard del concetto inglese. Il livello di confidenza per singola voce è documentato in NOTE.md, non in questo file (lo schema non prevede un campo per la fonte).",
+  "concepts": {
+    "rejectAll": {
+      "en": ["Reject All", "Reject all", "Decline All", "Decline all", "Deny", "Deny All"],
+      "it": ["Rifiuta tutto", "Rifiuta tutti", "Rifiuta"],
+      "de": ["Alle ablehnen", "Ablehnen"],
+      "fr": ["Tout refuser", "Refuser tout", "Refuser tous les cookies"],
+      "es": ["Rechazar todo", "Rechazar todos"]
+    },
+    "necessaryOnly": {
+      "en": ["Necessary Only", "Only Necessary", "Accept Essentials Only", "Use necessary cookies only", "Continue without accepting"],
+      "it": ["Solo necessari", "Solo cookie necessari", "Continua senza accettare"],
+      "de": ["Nur notwendige", "Nur erforderliche Cookies", "Ohne Zustimmung fortfahren"],
+      "fr": ["Uniquement nécessaires", "Cookies nécessaires uniquement", "Continuer sans accepter"],
+      "es": ["Solo necesarias", "Solo cookies necesarias", "Continuar sin aceptar"]
+    },
+    "savePreferences": {
+      "en": ["Save Preferences", "Save Settings", "Save My Choices", "Confirm My Choices", "Confirm Choices", "Save and exit"],
+      "it": ["Salva preferenze", "Salva impostazioni", "Conferma le mie scelte"],
+      "de": ["Einstellungen speichern", "Auswahl speichern", "Meine Auswahl bestätigen"],
+      "fr": ["Enregistrer les préférences", "Enregistrer les paramètres", "Confirmer mes choix"],
+      "es": ["Guardar preferencias", "Guardar configuración", "Confirmar mis opciones"]
+    },
+    "manageSettings": {
+      "en": ["Manage Settings", "Cookie Settings", "Preferences", "More Options", "Customize", "Preference Manager"],
+      "it": ["Gestisci impostazioni", "Impostazioni cookie", "Preferenze cookie", "Personalizza"],
+      "de": ["Einstellungen verwalten", "Cookie-Einstellungen", "Präferenzen", "Anpassen"],
+      "fr": ["Gérer les paramètres", "Paramètres des cookies", "Préférences", "Personnaliser"],
+      "es": ["Gestionar configuración", "Configuración de cookies", "Preferencias", "Personalizar"]
+    }
+  }
+}

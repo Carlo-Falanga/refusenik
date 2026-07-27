@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-27T00:00:00Z",
+  "cmps": [
+    {
+      "id": "onetrust",
+      "name": "OneTrust",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#onetrust-banner-sdk"
+        },
+        {
+          "css": "#onetrust-consent-sdk"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#onetrust-reject-all-handler"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#onetrust-pc-btn-handler"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": "#onetrust-pc-sdk"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": "#onetrust-pc-sdk input.category-switch-handler"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#onetrust-pc-sdk .save-preference-btn-handler"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "trustarc_legacy_iframe",
+      "name": "TrustArc (legacy iframe Preference Manager)",
+      "priority": 8,
+      "detect": [
+        {
+          "css": "#truste-consent-track, .truste-consent-content"
+        },
+        {
+          "css": "#truste-show-consent, #truste-show-consent_"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#truste-show-consent, #truste-show-consent_"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "frame": "iframe[title='TrustArc Preference Manager']",
+            "css": ".pdynamicbutton .shp"
+          },
+          "timeoutMs": 5000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "frame": "iframe[title='TrustArc Preference Manager']",
+            "css": ".pdynamicbutton .shp"
+          },
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "frame": "iframe[title='TrustArc Preference Manager']",
+            "css": ".switch[role='option']"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "frame": "iframe[title='TrustArc Preference Manager']",
+            "css": ".submit, .saveAndExit"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "frame": "iframe[title='TrustArc Preference Manager']",
+            "css": ".close"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "cookiebot",
+      "name": "Cookiebot",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#CybotCookiebotDialog"
+        },
+        {
+          "css": "#CybotCookiebotDialogBodyButtonAccept"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#CybotCookiebotDialogBodyButtonDecline"
+          },
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": "#CybotCookiebotDialogBodyLevelButtonPreferences, #CybotCookiebotDialogBodyLevelButtonStatistics, #CybotCookiebotDialogBodyLevelButtonMarketing"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#CybotCookiebotDialogBodyButtonAcceptSelected, #CybotCookiebotDialogBodyLevelButtonAccept"
+          },
+          "optional": true
+        },
+        {
+          "action": "hide",
+          "selector": {
+            "css": "#CybotCookiebotDialog, #CybotCookiebotDialogBodyUnderlay, #cb-cookieoverlay"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "didomi",
+      "name": "Didomi",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#didomi-host"
+        },
+        {
+          "css": "#didomi-notice, #didomi-popup"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".didomi-notice-learn-more-button, .didomi-learn-more-button"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".didomi-consent-popup-data-processing__buttons, .didomi-components-accordion"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".didomi-consent-popup-data-processing__buttons .didomi-components-radio__option:nth-child(2)"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".didomi-consent-popup-footer .didomi-consent-popup-actions .didomi-components-button:first-child"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "usercentrics",
+      "name": "Usercentrics (v2 light-DOM widget)",
+      "priority": 8,
+      "detect": [
+        {
+          "css": ".uc-banner-wrapper, .uc-banner-content"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#uc-btn-more-info-banner"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".uc-inner-content"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": ".uc-inner-content input[type=checkbox]:not(:disabled)"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".uc-save-settings-button"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "quantcast",
+      "name": "Quantcast Choice (classic qc-cmp UI, TCF)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".qc-cmp-ui-container"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#qc-cmp-purpose-button"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".qc-cmp-vendor-list-body, .qc-cmp-publisher-purposes-table"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": ".qc-cmp-vendor-list-body .qc-cmp-toggle-cell .qc-cmp-toggle, .qc-cmp-publisher-purposes-table .qc-cmp-toggle, .qc-cmp-vendors-purposes-table .qc-cmp-toggle"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".qc-cmp-save-and-exit"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "quantcast_v2",
+      "name": "Quantcast Choice (data-tracking-opt-in UI, TCF)",
+      "priority": 9,
+      "detect": [
+        {
+          "css": "[data-tracking-opt-in-overlay]"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "[data-tracking-opt-in-learn-more]"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": "[data-tracking-opt-in-overlay] [data-tracking-opt-in-save]"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": "[data-tracking-opt-in-overlay] input[type=checkbox]"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "[data-tracking-opt-in-save]"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "osano",
+      "name": "Osano",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".osano-cm-window"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".osano-cm-button--type_denyAll, .osano-cm-button--type_deny"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".osano-cm-manage"
+          },
+          "optional": true
+        },
+        {
+          "action": "setCheckbox",
+          "selector": {
+            "css": "#osano-cm-drawer-toggle--category_MARKETING, #osano-cm-drawer-toggle--category_PERSONALIZATION, #osano-cm-drawer-toggle--category_ANALYTICS, #osano-cm-drawer-toggle--category_STORAGE, #osano-cm-dialog-toggle--category_MARKETING, #osano-cm-dialog-toggle--category_PERSONALIZATION, #osano-cm-dialog-toggle--category_ANALYTICS, #osano-cm-dialog-toggle--category_STORAGE"
+          },
+          "checked": false,
+          "all": true,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".osano-cm-save"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "bigid",
+      "name": "BigID Cookie Consent",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "iframe#bigidcmp-banner-widget"
+        }
+      ],
+      "flow": [
+        {
+          "action": "waitFor",
+          "selector": {
+            "frame": "iframe#bigidcmp-banner-widget",
+            "css": "#cmp-reject-all"
+          },
+          "timeoutMs": 5000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "frame": "iframe#bigidcmp-banner-widget",
+            "css": "#cmp-reject-all"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "datagrail",
+      "name": "DataGrail Consent",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "aside.dg-consent-banner"
+        }
+      ],
+      "flow": [
+        {
+          "action": "waitFor",
+          "selector": {
+            "shadowPath": [
+              "aside.dg-consent-banner"
+            ],
+            "css": "button.dg-button.reject_all"
+          },
+          "timeoutMs": 5000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "shadowPath": [
+              "aside.dg-consent-banner"
+            ],
+            "css": "button.dg-button.reject_all"
+          },
+          "optional": true
+        }
+      ]
+    }
+  ]
+}
