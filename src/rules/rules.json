@@ -128,9 +128,6 @@
       "detect": [
         {
           "css": "#CybotCookiebotDialog"
-        },
-        {
-          "css": "#CybotCookiebotDialogBodyButtonAccept"
         }
       ],
       "flow": [
@@ -173,9 +170,6 @@
       "detect": [
         {
           "css": "#didomi-host"
-        },
-        {
-          "css": "#didomi-notice, #didomi-popup"
         }
       ],
       "flow": [

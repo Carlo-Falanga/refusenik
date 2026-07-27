@@ -1,0 +1,16 @@
+[
+  { "slug": "bigid",        "url": "https://bigid.com",            "expect": "bigid" },
+  { "slug": "bedbath",      "url": "https://www.bedbathandbeyond.com", "expect": "datagrail" },
+  { "slug": "cookiebot",    "url": "https://www.cookiebot.com",    "expect": "cookiebot" },
+  { "slug": "didomi",       "url": "https://www.didomi.io",        "expect": "didomi" },
+  { "slug": "usercentrics", "url": "https://usercentrics.com",     "expect": "usercentrics" },
+  { "slug": "osano",        "url": "https://www.osano.com",        "expect": "osano" },
+  { "slug": "trustarc",     "url": "https://trustarc.com",         "expect": "trustarc_legacy_iframe" },
+  { "slug": "onetrust",     "url": "https://www.onetrust.com",     "expect": "onetrust" },
+  { "slug": "accenture",    "url": "https://www.accenture.com",    "expect": null },
+  { "slug": "lemonde",      "url": "https://www.lemonde.fr",       "expect": null },
+  { "slug": "repubblica",   "url": "https://www.repubblica.it",    "expect": null },
+  { "slug": "spiegel",      "url": "https://www.spiegel.de",       "expect": null },
+  { "slug": "elpais",       "url": "https://elpais.com",           "expect": null },
+  { "slug": "booking",      "url": "https://www.booking.com",      "expect": null }
+]

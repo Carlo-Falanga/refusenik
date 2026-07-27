@@ -13,6 +13,7 @@
   "devDependencies": {
     "esbuild": "^0.28.1",
     "jsdom": "^25.0.1",
+    "playwright": "^1.62.0",
     "web-ext": "^10.5.0"
   }
 }

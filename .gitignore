@@ -10,3 +10,4 @@ web-ext-artifacts/
 *.pem
 *.key
 *private*.jwk
+verification/
