@@ -1,12 +1,12 @@
 {
   "extensionName": {
-    "message": "Cookie Refuser"
+    "message": "Refusenik — Reject Cookie Banners"
   },
   "extensionDescription": {
     "message": "Refuses cookie consent banners on recognised consent platforms instead of hiding them."
   },
   "popupTitle": {
-    "message": "Cookie Refuser"
+    "message": "Refusenik"
   },
   "statusRefused": {
     "message": "Refused"

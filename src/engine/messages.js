@@ -12,13 +12,13 @@
  */
 
 /** Content script -> background: ask for the currently active ruleset. */
-export const MESSAGE_GET_RULESET = 'cookieRefuser:getRuleset';
+export const MESSAGE_GET_RULESET = 'refusenik:getRuleset';
 
 /** Content script -> background: report what happened on this page load. */
-export const MESSAGE_OUTCOME = 'cookieRefuser:outcome';
+export const MESSAGE_OUTCOME = 'refusenik:outcome';
 
 /** Popup -> background: ask for the recorded outcome of a specific tab id. */
-export const MESSAGE_GET_TAB_STATE = 'cookieRefuser:getTabState';
+export const MESSAGE_GET_TAB_STATE = 'refusenik:getTabState';
 
 /** Values of the outcome message's `status` field. */
 export const OUTCOME_STATUS = Object.freeze({

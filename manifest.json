@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Cookie Refuser (dev build)",
+  "name": "__MSG_extensionName__",
   "version": "0.1.0",
   "description": "Refuses cookie consent banners on recognised consent platforms instead of hiding them.",
   "default_locale": "en",

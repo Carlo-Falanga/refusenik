@@ -37,7 +37,7 @@ import {
 } from './browser-api.js';
 import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, MESSAGE_GET_TAB_STATE, OUTCOME_STATUS } from './messages.js';
 
-const RULESET_REFRESH_ALARM = 'cookieRefuser.rulesetRefresh';
+const RULESET_REFRESH_ALARM = 'refusenik.rulesetRefresh';
 const RULESET_REFRESH_PERIOD_MINUTES = 12 * 60; // 12h, per docs/ARCHITETTURA.md
 
 /**

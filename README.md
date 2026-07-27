@@ -1,8 +1,6 @@
-# cookie-refuser
+# Refusenik
 
 A browser extension that **refuses** cookie consent banners instead of hiding them.
-
-Working name — subject to change before release.
 
 ## Why this is different
 

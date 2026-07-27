@@ -32,7 +32,7 @@ import { storageLocalGet, storageLocalSet, getExtensionUrl } from './browser-api
 import { verifyDetached, base64ToBytes } from './signature.js';
 
 // Single point of configuration for the remote ruleset endpoint.
-export const REMOTE_RULESET_URL = 'https://rules.cookie-refuser.example/ruleset.json';
+export const REMOTE_RULESET_URL = 'https://rules.refusenik.app/ruleset.json';
 
 // Contract with src/rules/: the bundled fallback ruleset must be packaged at
 // this path (relative to the extension root) and match the schema below.
@@ -41,8 +41,8 @@ const BUNDLED_RULESET_PATH = 'rules/ruleset.json';
 const SUPPORTED_SCHEMA_VERSIONS = [1];
 const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12h
 
-const STORAGE_KEY_RULESET = 'cookieRefuser.ruleset';
-const STORAGE_KEY_LAST_ATTEMPT = 'cookieRefuser.rulesetLastAttempt';
+const STORAGE_KEY_RULESET = 'refusenik.ruleset';
+const STORAGE_KEY_LAST_ATTEMPT = 'refusenik.rulesetLastAttempt';
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

@@ -1,5 +1,5 @@
 {
-  "name": "cookie-refuser",
+  "name": "refusenik",
   "version": "0.1.0",
   "private": true,
   "description": "WebExtension engine that automatically refuses cookie consent banners on known CMPs.",
