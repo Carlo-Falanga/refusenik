@@ -65,12 +65,27 @@ function isStepLike(value) {
   return isPlainObject(value) && typeof value.action === 'string';
 }
 
+/**
+ * A CMP entry's optional `kind` field (docs/ARCHITETTURA.md). Schema
+ * validation only checks its type here, never its specific value: a `kind`
+ * this engine version does not recognise must still pass schema validation,
+ * otherwise a ruleset that is merely newer than the engine (using a `kind`
+ * value introduced by a later release) would be discarded wholesale instead
+ * of degrading gracefully. The fail-closed behaviour for an unrecognised
+ * `kind` - never running its flow - lives at the point of use,
+ * isActionableKind() in src/engine/detect.js, not here.
+ */
+function isKindLike(value) {
+  return value === undefined || typeof value === 'string';
+}
+
 function isCmpLike(cmp) {
   return (
     isPlainObject(cmp)
     && typeof cmp.id === 'string' && cmp.id.length > 0
     && typeof cmp.name === 'string'
     && typeof cmp.priority === 'number'
+    && isKindLike(cmp.kind)
     && Array.isArray(cmp.detect) && cmp.detect.every(isSelectorLike)
     && Array.isArray(cmp.flow) && cmp.flow.every(isStepLike)
   );

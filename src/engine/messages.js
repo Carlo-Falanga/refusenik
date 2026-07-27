@@ -25,4 +25,22 @@ export const OUTCOME_STATUS = Object.freeze({
   HANDLED: 'handled',
   FAILED: 'failed',
   SUSPECTED_UNHANDLED: 'suspected-unhandled',
+  // A CMP was recognised, but only as a "consent or pay" wall: the site
+  // offers no refusal, only tracking consent or a paid subscription. The
+  // engine never runs a flow for these (see src/engine/detect.js's
+  // isActionableKind() and src/rules/NOTE.md) - this status means "correctly
+  // recognised and deliberately left alone", not a failure.
+  CONSENT_OR_PAY: 'consent-or-pay',
+});
+
+/**
+ * Values of a CMP entry's optional `kind` field (see docs/ARCHITETTURA.md).
+ * `REFUSE` is the implicit default when the field is absent - both authorize
+ * the engine to run the entry's `flow`. Any other value, known or not, must
+ * never be treated as authorizing an action; see isActionableKind() in
+ * src/engine/detect.js.
+ */
+export const CMP_KIND = Object.freeze({
+  REFUSE: 'refuse',
+  CONSENT_OR_PAY: 'consentOrPay',
 });

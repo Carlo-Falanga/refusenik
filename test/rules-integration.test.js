@@ -16,8 +16,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { JSDOM } from 'jsdom';
 
 import { validateRuleset } from '../src/engine/ruleset.js';
+import { detectCMP } from '../src/engine/detect.js';
+import { runFlow } from '../src/engine/steps.js';
 import { resolveTextMatchRefs, assertNoUnresolvedRefs } from '../src/rules/expandTextMatchRefs.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -143,4 +146,109 @@ describe('rules.json <-> labels.json contract (textMatch / textMatchRef)', () =>
     };
     assert.throws(() => resolveTextMatchRefs(broken, labels));
   });
+});
+
+describe('consent-or-pay walls: recognised without acting (docs/ARCHITETTURA.md, src/rules/NOTE.md)', () => {
+  const resolved = resolveTextMatchRefs(ruleset, labels);
+
+  function domWithBody(html) {
+    return new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { runScripts: undefined }).window.document;
+  }
+
+  test('repubblica.it (Iubenda banner + subscribe-wall marker) is detected as the consent-or-pay entry, not generic Iubenda', () => {
+    // repubblica.it genuinely runs the generic Iubenda widget AND is a
+    // consent-or-pay wall at once - the dangerous case the task calls out.
+    // The consent-or-pay entry's priority must win the tie.
+    const document = domWithBody('<div id="iubenda-cs-banner"></div><button id="iub_cmp_subscribe_custom_btn"></button>');
+
+    const cmp = detectCMP(resolved, document);
+    assert.ok(cmp, 'expected a CMP to be detected');
+    assert.equal(cmp.id, 'repubblica_consent_or_pay');
+    assert.equal(cmp.kind, 'consentOrPay');
+  });
+
+  test('a plain Iubenda banner (no subscribe-wall marker) is detected as generic Iubenda, refusable', () => {
+    const document = domWithBody('<div id="iubenda-cs-banner"></div>');
+
+    const cmp = detectCMP(resolved, document);
+    assert.ok(cmp);
+    assert.equal(cmp.id, 'iubenda');
+    assert.equal(cmp.kind, undefined);
+  });
+
+  test('corriere.it (privacy-cp-wall) is detected as its own consent-or-pay entry', () => {
+    const document = domWithBody('<div class="privacy-cp-wall"><button id="privacy-cp-wall-reject-and-subscribe"></button></div>');
+
+    const cmp = detectCMP(resolved, document);
+    assert.ok(cmp);
+    assert.equal(cmp.id, 'corriere_consent_or_pay');
+    assert.equal(cmp.kind, 'consentOrPay');
+  });
+
+  test('every consentOrPay entry ships an empty flow: there is nothing for it to ever click', () => {
+    const consentOrPayEntries = resolved.cmps.filter((cmp) => cmp.kind === 'consentOrPay');
+    assert.ok(consentOrPayEntries.length >= 2, 'expected at least the corriere and repubblica entries');
+    for (const cmp of consentOrPayEntries) {
+      assert.deepEqual(cmp.flow, [], `${cmp.id} must not carry a flow - it is recognition-only`);
+    }
+  });
+});
+
+describe('Iubenda: the close-button fallback only ever fires on the exempted wording', () => {
+  const resolved = resolveTextMatchRefs(ruleset, labels);
+  const iubenda = resolved.cmps.find((cmp) => cmp.id === 'iubenda');
+
+  test('the shipped Iubenda flow exists and its fallback step targets the close button via necessaryOnly wording', () => {
+    assert.ok(iubenda, 'expected an "iubenda" entry in rules.json');
+    const closeStep = iubenda.flow.find((step) => step.selector && step.selector.css === '.iubenda-cs-close-btn');
+    assert.ok(closeStep, 'expected a step targeting .iubenda-cs-close-btn');
+    assert.ok(Array.isArray(closeStep.selector.textMatch) && closeStep.selector.textMatch.length > 0);
+  });
+
+  test('alfemminile.com variant: no direct reject button, close button carries "Continua senza accettare" - it IS clicked', async () => {
+    const document = domWithBody(`
+      <div id="iubenda-cs-banner">
+        <button class="iubenda-cs-close-btn">Continua senza accettare</button>
+      </div>
+    `);
+
+    let clicked = false;
+    document.querySelector('.iubenda-cs-close-btn').addEventListener('click', () => { clicked = true; });
+
+    await runFlow(iubenda.flow, document);
+    assert.equal(clicked, true, 'the close button must be clicked when it carries the necessaryOnly wording');
+  });
+
+  test('a bare dismiss "X" without the necessaryOnly wording is never clicked, even though it matches the selector', async () => {
+    const document = domWithBody(`
+      <div id="iubenda-cs-banner">
+        <button class="iubenda-cs-close-btn" aria-label="Close">&times;</button>
+      </div>
+    `);
+
+    let clicked = false;
+    document.querySelector('.iubenda-cs-close-btn').addEventListener('click', () => { clicked = true; });
+
+    await runFlow(iubenda.flow, document);
+    assert.equal(clicked, false, 'a close button without the exempted wording must never be clicked - it would silently dismiss without refusing');
+  });
+
+  test('ilpost.it / giallozafferano.it variant: direct reject button present - it is clicked, and the close-button fallback is not needed', async () => {
+    const document = domWithBody(`
+      <div id="iubenda-cs-banner">
+        <button class="iubenda-cs-reject-btn">Continua senza accettare</button>
+      </div>
+    `);
+
+    let rejectClicked = false;
+    document.querySelector('.iubenda-cs-reject-btn').addEventListener('click', () => { rejectClicked = true; });
+
+    const results = await runFlow(iubenda.flow, document);
+    assert.equal(rejectClicked, true);
+    assert.equal(results[0].ok, true);
+  });
+
+  function domWithBody(html) {
+    return new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { runScripts: undefined }).window.document;
+  }
 });

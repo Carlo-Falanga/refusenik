@@ -124,6 +124,10 @@ body {
   background: var(--color-accent-caution);
 }
 
+.popup[data-state="consent-or-pay"] .popup__dot {
+  background: var(--color-accent-neutral);
+}
+
 .popup__cmp-name {
   margin: 0 0 0 16px;
   font-family: var(--font-mono);

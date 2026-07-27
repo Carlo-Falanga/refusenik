@@ -5,7 +5,12 @@
  * (e.g. legacy TrustArc) render their UI inside a cross-origin iframe that a
  * main-frame-only content script could never reach. Runs at document_idle in
  * every frame, then:
- *  1. Tries to detect and handle a known CMP immediately.
+ *  1. Tries to detect and handle a known CMP immediately. A matched CMP is
+ *     only actually refused if its `kind` authorizes it (see
+ *     isActionableKind() in detect.js) - a "consentOrPay" wall is recognised
+ *     and reported, never acted on, and any `kind` this engine version does
+ *     not understand fails closed the same way (see NOTE.md, "consent-or-pay
+ *     walls").
  *  2. If none matched, observes the DOM for late-loading CMPs (many surface
  *     1-3s after load) via MutationObserver, bounded by a time window.
  *  3. If nothing ever matches AND this is the top-level frame, runs a
@@ -25,10 +30,10 @@
  * only ever asks for the currently active one over `runtime.sendMessage`.
  */
 
-import { detectCMP } from './detect.js';
+import { detectCMP, isActionableKind } from './detect.js';
 import { runFlow } from './steps.js';
 import { sendRuntimeMessage } from './browser-api.js';
-import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, OUTCOME_STATUS } from './messages.js';
+import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, OUTCOME_STATUS, CMP_KIND } from './messages.js';
 
 // Most CMPs surface within 1-3s; this window keeps a generous margin while
 // still bounding the observer's lifetime on pages where nothing ever appears.
@@ -91,6 +96,29 @@ async function reportOutcome(payload) {
 async function tryHandleCMP(ruleset) {
   const cmp = detectCMP(ruleset, document);
   if (!cmp) return false;
+
+  if (!isActionableKind(cmp.kind)) {
+    if (cmp.kind === CMP_KIND.CONSENT_OR_PAY) {
+      // Recognition only (docs/ARCHITETTURA.md, src/rules/NOTE.md "consent-or
+      // -pay walls"): this site offers no refusal, only tracking consent or a
+      // paid subscription. Clicking the only available control would mean
+      // consenting - the opposite of this extension's purpose - so the only
+      // correct action is to say so and stop. No flow is ever run.
+      await reportOutcome({
+        domain: currentDomain(),
+        cmpId: cmp.id,
+        cmpName: cmp.name,
+        status: OUTCOME_STATUS.CONSENT_OR_PAY,
+      });
+      return true;
+    }
+
+    // Fail-closed: a `kind` this engine version does not recognise (a
+    // ruleset newer than the engine) never authorizes running a flow, and is
+    // never treated as "refuse". Reported the same as no match at all, so a
+    // later heuristic pass can still flag the page as an unhandled banner.
+    return false;
+  }
 
   // Timed and counted purely for the popup's own display (docs/ARCHITETTURA.md
   // does not cover the UI). This is separate from - and much more detailed

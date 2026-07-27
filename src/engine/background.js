@@ -60,6 +60,11 @@ const tabOutcomes = new Map();
 const OUTCOME_STATUS_RANK = {
   [OUTCOME_STATUS.HANDLED]: 2,
   [OUTCOME_STATUS.FAILED]: 2,
+  // A "consent or pay" wall is a confident, deterministic recognition (the
+  // same certainty as HANDLED/FAILED), not a guess - so it ranks the same
+  // and must not be downgraded by a later heuristic "suspected" report from
+  // a slower top-frame scan of the same page load.
+  [OUTCOME_STATUS.CONSENT_OR_PAY]: 2,
   [OUTCOME_STATUS.SUSPECTED_UNHANDLED]: 1,
 };
 

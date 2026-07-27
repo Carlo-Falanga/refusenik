@@ -250,21 +250,54 @@ not `<input>`, and were deliberately left alone until their DOM is confirmed:
 Do not add attribute support speculatively. Confirm on the live widget first:
 a rule written against an imagined structure is worse than one left as it is.
 
-## Consent-or-pay walls: out of scope, and deliberately so
+## Consent-or-pay walls: recognise and say so, never act
 
 Live checks on European news sites turned up something that is not a rule bug.
-lemonde.fr and spiegel.de (and elpais.com, same pattern) no longer offer a
-refusal at all. The choice is "Accept and continue" or "Subscribe": consent to
-tracking, or pay.
+corriere.it, repubblica.it, lemonde.fr and spiegel.de (and elpais.com, same
+pattern) no longer offer a refusal at all. The choice is "Accept and continue"
+or "Subscribe": consent to tracking, or pay.
 
 There is nothing for this extension to refuse on those pages. Clicking the only
 available button would consent to tracking - the exact opposite of the product's
 purpose - so doing nothing is correct behaviour, not a gap to close.
 
-Two consequences worth carrying forward:
+This is now a first-class engine concept rather than just a policy note: a CMP
+entry may carry `"kind": "consentOrPay"` (`src/engine/messages.js`'s `CMP_KIND`,
+gated by `isActionableKind()` in `src/engine/detect.js`). Such an entry exists
+purely to be *recognised* - its `flow` is never executed, and the popup shows a
+dedicated state that explains there is nothing to refuse, with no report button
+(reporting an unsolvable case would only pollute the one channel meant for
+cases that can actually be fixed).
 
-1. Do NOT write rules for consent-or-pay walls. Any rule that "handles" one is
-   either useless or actively harmful.
+Two entries are shipped on this basis, both with markers verified live:
+
+- `corriere_consent_or_pay` - `.privacy-cp-wall` (**class, not id** - the
+  brief for this rule assumed `#privacy-cp-wall`; live inspection via
+  `tools/verify-rules.mjs --site corriere.it` showed the container only ever
+  carries `privacy-cp-wall` as one of several classes, alongside an
+  unrelated stylesheet element whose id happens to be `_privacy-cp-wall-css`.
+  Corrected before shipping rather than guessed) together with
+  `#privacy-cp-wall-reject-and-subscribe` (id, confirmed present).
+- `repubblica_consent_or_pay` - `#iubenda-cs-banner` **together with**
+  `#iub_cmp_subscribe_custom_btn`. Repubblica also runs the generic Iubenda
+  widget (see the Iubenda section below), so this entry's `priority` (20) is
+  set strictly above generic Iubenda's (10): both entries' `detect` match on
+  repubblica.it, and without the higher priority the generic Iubenda entry
+  would win the tie and the engine would attempt a refusal flow that does not
+  exist on that page. Covered by an explicit precedence test in
+  `test/rules-integration.test.js`.
+
+**Not shipped, deliberately**: lemonde.fr and spiegel.de are the same pattern
+by observation, but their actual DOM markers were never inspected live in any
+session to date - writing a `detect` for them now would mean guessing at
+selectors, which this project's own rules explicitly reject elsewhere. Add
+them only after a live inspection confirms their markup.
+
+Other consequences worth carrying forward:
+
+1. Do NOT write a `"refuse"`-kind rule for a consent-or-pay wall. Any rule that
+   "handles" one by clicking its only button is either useless or actively
+   harmful.
 2. The market sizing behind "nine CMPs cover 95%" came from a consent-management
    *software market* report, not from a survey of what actually renders banners
    on the open web. It omits Sourcepoint entirely, which spiegel.de uses
@@ -275,6 +308,34 @@ Two consequences worth carrying forward:
 
 Sourcepoint is worth a rule only where it renders a genuine reject option.
 Confirm that on a live site before writing one.
+
+## Iubenda - confidence ALTA (three sites verified live)
+
+Widespread on Italian sites and entirely absent from the original nine-CMP
+plan (see the sweep below). Structure verified live on three sites:
+
+- Container (`detect`): `#iubenda-cs-banner`.
+- Direct reject: `.iubenda-cs-reject-btn`, text "Continua senza accettare" -
+  confirmed on `ilpost.it` and `giallozafferano.it`.
+- Accept: `.iubenda-cs-accept-btn` - never clicked by this rule.
+- Options: `.iubenda-cs-customize-btn` - not used by the shipped flow (no
+  path requires opening the preference panel; the direct reject or the
+  close-button fallback below cover every site inspected).
+
+**Variant confirmed on `alfemminile.com`**: `.iubenda-cs-reject-btn` does not
+exist there at all. The only rejection path is `.iubenda-cs-close-btn` - but
+that same class is, on other Iubenda deployments, an ordinary dismiss "X" that
+closes the banner without registering any refusal. Clicking it unconditionally
+would silently leave the user tracked while the popup claims "refused".
+
+The flow therefore never clicks `.iubenda-cs-close-btn` unconditionally: it is
+gated by `textMatchRef: "necessaryOnly"` (`labels.json`'s `necessaryOnly`
+concept already contains the Italian variant "Continua senza accettare" used
+by alfemminile.com). On a site where the close button does not carry that
+text, the selector simply fails to match - the button is left alone. Covered
+by an explicit test in `test/rules-integration.test.js` asserting the close
+button is clicked only when it carries the exempted `necessaryOnly` wording,
+never otherwise.
 
 ## What a 45-site sweep of real European sites actually found
 
@@ -298,10 +359,14 @@ worth prioritising, and the original nine-CMP list badly mis-ranked them.
 Uncovered banners, by fingerprint:
 
 - **Iubenda** (`iubenda-cs-*`, `iub_cmp_*`) - repubblica.it. Widespread on
-  Italian sites and entirely absent from the original plan. Best candidate.
-- **Tealium** (`__tealiumGDPRecModal`, `consentAcceptAll`) - telekom.de.
+  Italian sites and entirely absent from the original plan. **Now covered**:
+  see the Iubenda section above.
+- **Tealium** (`__tealiumGDPRecModal`, `consentAcceptAll`) - telekom.de. Still
+  not covered - no live inspection of its reject path yet.
 - **Consent-or-pay walls** - corriere.it (`privacy-cp-wall-reject-and-subscribe`),
-  repubblica.it. Out of scope by decision: recognise and say so, never act.
+  repubblica.it. **Now recognised, never acted on**: see the "Consent-or-pay
+  walls" section above (`kind: "consentOrPay"`). lemonde.fr and spiegel.de are
+  the same pattern but remain unverified and therefore unshipped.
 - **In-house implementations** - mediaworld.it (`pwa-consent-layer-*`),
   ryanair.com (`cookie-popup-with-overlay`). One-off markup, no platform behind
   it. This is the per-site long tail EasyList drowned in; do not chase it.

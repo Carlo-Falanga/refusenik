@@ -17,6 +17,9 @@
   "statusSuspected": {
     "message": "Unhandled suspicious banner"
   },
+  "statusConsentOrPay": {
+    "message": "Consent-or-pay wall"
+  },
   "statusNothing": {
     "message": "Nothing to do"
   },
@@ -39,6 +42,9 @@
   },
   "bodySuspected": {
     "message": "No known consent platform was recognised, but this looks like a cookie banner. Reporting it helps add support for it."
+  },
+  "bodyConsentOrPay": {
+    "message": "This site does not offer a refusal option, only consent to tracking or a paid subscription. There is nothing to refuse here, so nothing was done."
   },
   "stepsSummaryPlural": {
     "message": "$COUNT$ steps · $MS$ ms",

@@ -4,7 +4,7 @@
  * didn't (docs/ARCHITETTURA.md does not cover the UI - this file and
  * report.js are where that product decision actually lives).
  *
- * Five states, in the priority they are checked:
+ * Six states, in the priority they are checked:
  *  1. Site access revoked (browser-api.js's hasAllUrlsPermission() is
  *     false) - checked FIRST, since if it's true nothing below can be
  *     trusted (no content script ever ran here).
@@ -13,12 +13,17 @@
  *     permission to know more about why.
  *  3. No recorded outcome for this tab (background.js's tabOutcomes) ->
  *     "nothing to do".
- *  4/5. A recorded outcome with status 'handled' / 'failed' /
- *     'suspected-unhandled' (src/engine/messages.js) -> refused / failed /
- *     suspected-unhandled respectively.
+ *  4/5/6. A recorded outcome with status 'handled' / 'failed' /
+ *     'consent-or-pay' / 'suspected-unhandled' (src/engine/messages.js) ->
+ *     refused / failed / consent-or-pay / suspected-unhandled respectively.
+ *     'consent-or-pay' means a site that offers no refusal at all, only
+ *     consent to tracking or a paid subscription (docs/ARCHITETTURA.md,
+ *     src/rules/NOTE.md) - distinct from every other state, and the one
+ *     state that never shows the report button (see below).
  *
- * The report button (states failed/suspected only) always reveals the exact
- * text that will be copied before anything is copied - see report.js.
+ * The report button (states failed/suspected only - never consent-or-pay,
+ * a case this extension can never resolve) always reveals the exact text
+ * that will be copied before anything is copied - see report.js.
  */
 
 import {
@@ -127,6 +132,22 @@ function renderFailed(outcome) {
   setUpReportButton(outcome);
 }
 
+function renderConsentOrPay(outcome) {
+  setState('consent-or-pay');
+  fields.statusLabel.textContent = getMessage('statusConsentOrPay');
+  // The CMP name is deliberately not shown in this state. These entries are
+  // named after the wall rather than after a platform, so it restates the
+  // status label verbatim - and a line repeating the line above it is noise in
+  // a layout whose whole point is density.
+  renderDomain(outcome.domain);
+  fields.body.textContent = getMessage('bodyConsentOrPay');
+  show(fields.body);
+  // Deliberately no setUpReportButton() call here: this site can never be
+  // "fixed" by this extension (there is no refusal to click), so inviting a
+  // report would only fill the report channel with unsolvable cases - see
+  // src/rules/NOTE.md, "Consent-or-pay walls".
+}
+
 function renderSuspected(outcome) {
   setState('suspected');
   fields.statusLabel.textContent = getMessage('statusSuspected');
@@ -198,6 +219,11 @@ async function render() {
 
   if (outcome.status === OUTCOME_STATUS.FAILED) {
     renderFailed(outcome);
+    return;
+  }
+
+  if (outcome.status === OUTCOME_STATUS.CONSENT_OR_PAY) {
+    renderConsentOrPay(outcome);
     return;
   }
 

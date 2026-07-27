@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-27T00:00:00Z",
-  "rulesetVersion": 1,
+  "generatedAt": "2026-07-27T16:00:00Z",
+  "rulesetVersion": 2,
   "cmps": [
     {
       "id": "onetrust",
@@ -436,6 +436,63 @@
           "optional": true
         }
       ]
+    },
+    {
+      "id": "iubenda",
+      "name": "Iubenda",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#iubenda-cs-banner"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".iubenda-cs-reject-btn"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".iubenda-cs-close-btn",
+            "textMatchRef": "necessaryOnly"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "repubblica_consent_or_pay",
+      "name": "la Repubblica (consent-or-pay wall, Iubenda-based)",
+      "kind": "consentOrPay",
+      "priority": 20,
+      "detect": [
+        {
+          "css": "#iubenda-cs-banner"
+        },
+        {
+          "css": "#iub_cmp_subscribe_custom_btn"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "corriere_consent_or_pay",
+      "name": "Corriere della Sera (consent-or-pay wall)",
+      "kind": "consentOrPay",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".privacy-cp-wall"
+        },
+        {
+          "css": "#privacy-cp-wall-reject-and-subscribe"
+        }
+      ],
+      "flow": []
     }
   ]
 }
