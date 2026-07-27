@@ -120,6 +120,65 @@ describe('selector.js - textMatch', () => {
     const selector = { css: 'button', textMatch: 'reject all', textMatchMode: 'regex-safe' };
     assert.equal(resolveSelector(selector, document), null);
   });
+
+  test('textMatch as an array matches if ANY variant matches (multi-language labels)', () => {
+    const dom = makeDom();
+    const { document } = dom.window;
+
+    const decoy = document.createElement('button');
+    decoy.textContent = 'Accept all';
+    document.body.appendChild(decoy);
+
+    const target = document.createElement('button');
+    target.textContent = 'Rifiuta tutto';
+    document.body.appendChild(target);
+
+    const selector = {
+      css: 'button',
+      textMatch: ['Reject all', 'Rifiuta tutto', 'Alle ablehnen', 'Tout refuser', 'Rechazar todo'],
+      textMatchMode: 'contains',
+    };
+    assert.equal(resolveSelector(selector, document), target);
+  });
+
+  test('textMatch as an array matching none of the variants yields no match', () => {
+    const dom = makeDom();
+    const { document } = dom.window;
+
+    const target = document.createElement('button');
+    target.textContent = 'Rifiuta tutto';
+    document.body.appendChild(target);
+
+    const selector = { css: 'button', textMatch: ['Reject all', 'Tout refuser'], textMatchMode: 'exact' };
+    assert.equal(resolveSelector(selector, document), null);
+  });
+
+  test('an unresolved textMatchRef fails closed, never falling back to "match everything"', () => {
+    const dom = makeDom();
+    const { document } = dom.window;
+
+    const target = document.createElement('button');
+    target.textContent = 'Reject all';
+    document.body.appendChild(target);
+
+    // No literal `textMatch` at all - if textMatchRef were ignored instead
+    // of failing closed, this would match every <button> on the page.
+    const selector = { css: 'button', textMatchRef: 'rejectAll' };
+    assert.equal(resolveSelector(selector, document), null);
+    assert.deepEqual(resolveAllSelector(selector, document), []);
+  });
+
+  test('a textMatchRef alongside a literal textMatch still fails closed', () => {
+    const dom = makeDom();
+    const { document } = dom.window;
+
+    const target = document.createElement('button');
+    target.textContent = 'Reject all';
+    document.body.appendChild(target);
+
+    const selector = { css: 'button', textMatch: 'reject all', textMatchRef: 'rejectAll' };
+    assert.equal(resolveSelector(selector, document), null);
+  });
 });
 
 describe('selector.js - iframe', () => {

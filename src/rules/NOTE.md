@@ -168,6 +168,35 @@ il flow in decine di step quasi-duplicati (violando l'idea di "set chiuso di azi
 questo come lacuna reale dello schema, da risolvere probabilmente permettendo `textMatch` come
 `string | string[]` in una prossima release, non da aggirare qui.
 
+## `textMatch` come `string | string[]` e `textMatchRef` — mechanism aggiunto, non ancora applicato
+
+Lo schema ora supporta `Selector.textMatch: string | string[]` (corrisponde se una qualsiasi variante
+corrisponde) e, solo in `rules.json` come autore, `textMatchRef: "<chiave di labels.json>"`, risolto in un
+array letterale da `build.mjs` tramite `src/rules/expandTextMatchRefs.js` prima di impacchettare
+`dist/rules/ruleset.json`. L'engine (`src/engine/selector.js`) non risolve mai un `textMatchRef`: se ne
+sopravvive uno a runtime, il selettore fallisce chiuso (nessuna corrispondenza), non tenta di indovinarne
+il significato. `src/engine/ruleset.js` rifiuta inoltre l'intero ruleset (non solo il singolo selettore) se
+un `textMatchRef` non risolto è presente in un candidato ruleset — difesa aggiuntiva, coerente con "in caso
+di qualsiasi errore, resta sull'ultimo ruleset valido".
+
+**Nessuna delle 9 regole CMP consegnate usa oggi `textMatchRef`.** Ho ispezionato ogni selettore CSS in uso
+e nessuno dipende oggi da un'etichetta testuale in inglese: tutti usano ID o classi specifiche del CMP
+(`#onetrust-reject-all-handler`, `.osano-cm-button--type_denyAll`, `button.dg-button.reject_all`, ecc.),
+verificate per fonte o ispezione live (vedi sopra). Applicare `textMatchRef` a uno di questi selettori già
+univoci non aggiungerebbe copertura multilingua: la aggiungerebbe come restrizione ULTERIORE, e per le
+lingue non coperte da `labels.json` (o non confermate per quel CMP specifico, es. BigID è confermato solo
+in italiano) romperebbe un selettore che oggi funziona in qualunque lingua — una regressione, non un
+miglioramento.
+
+L'unico selettore realmente generico/ambiguo nell'intero ruleset è TrustArc `.pdynamicbutton .shp`
+(`trustarc_legacy_iframe`, step 2-3): più bottoni nel pannello "Preference Manager" potrebbero condividere
+questa classe, e oggi il flusso clicca semplicemente il primo match, senza alcuna garanzia che sia quello
+giusto — esattamente il caso a cui `textMatchRef` serve. Non ho però un testo confermato per questo
+elemento in questa sessione (nessuna ispezione DOM live disponibile, e dedurlo dal titolo dell'iframe
+"TrustArc Preference Manager" sarebbe un salto non verificato, lo stesso tipo di assunzione che la
+richiesta di questo step vieta esplicitamente). Non l'ho aggiunto. Se in futuro si ottiene un'ispezione
+live del widget TrustArc reale, questo è il candidato naturale per il primo uso reale di `textMatchRef`.
+
 ## Cosa manca per dichiarare la v1 completa
 
 1. Conferma del nome del campo discriminatore di Step (`type` è un'assunzione, vedi sopra).

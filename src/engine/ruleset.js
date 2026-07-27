@@ -49,7 +49,16 @@ function isPlainObject(value) {
 }
 
 function isSelectorLike(value) {
-  return isPlainObject(value) && typeof value.css === 'string' && value.css.length > 0;
+  return (
+    isPlainObject(value)
+    && typeof value.css === 'string' && value.css.length > 0
+    // `textMatchRef` is a build-time-only field (see
+    // src/rules/expandTextMatchRefs.js): a shipped/remote ruleset must never
+    // carry one. Rejecting it here means a ruleset that skipped resolution
+    // fails schema validation wholesale and is discarded, instead of merely
+    // having that one selector fail closed at match time.
+    && !('textMatchRef' in value)
+  );
 }
 
 function isStepLike(value) {

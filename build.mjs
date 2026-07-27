@@ -15,6 +15,13 @@
  * only here, at the packaging boundary - neither file is renamed at the
  * source.
  *
+ * Packaging the ruleset is not a plain copy: src/rules/rules.json may
+ * contain `textMatchRef` entries pointing at src/rules/labels.json, and this
+ * is the one place they get resolved into literal `textMatch` arrays (see
+ * src/rules/expandTextMatchRefs.js). The engine never resolves references
+ * itself, so what gets written to dist/rules/ruleset.json must already be
+ * fully literal - checked explicitly before it is written.
+ *
  * The popup (src/ui/) is bundled the same way as content/background: its
  * script is an ES module at the source, esbuild flattens it into a
  * self-contained IIFE so popup.html can load it with a plain <script> tag.
@@ -22,9 +29,11 @@
  */
 
 import { build } from 'esbuild';
-import { rmSync, mkdirSync, copyFileSync, cpSync, existsSync } from 'node:fs';
+import { rmSync, mkdirSync, copyFileSync, cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { resolveTextMatchRefs, assertNoUnresolvedRefs } from './src/rules/expandTextMatchRefs.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const distDir = join(here, 'dist');
@@ -61,7 +70,12 @@ await build({
 copyFileSync(join(here, 'manifest.json'), join(distDir, 'manifest.json'));
 
 mkdirSync(join(distDir, 'rules'), { recursive: true });
-copyFileSync(join(here, 'src', 'rules', 'rules.json'), join(distDir, 'rules', 'ruleset.json'));
+
+const authoredRules = JSON.parse(readFileSync(join(here, 'src', 'rules', 'rules.json'), 'utf8'));
+const labels = JSON.parse(readFileSync(join(here, 'src', 'rules', 'labels.json'), 'utf8'));
+const resolvedRules = resolveTextMatchRefs(authoredRules, labels);
+assertNoUnresolvedRefs(resolvedRules);
+writeFileSync(join(distDir, 'rules', 'ruleset.json'), JSON.stringify(resolvedRules, null, 2));
 
 mkdirSync(join(distDir, 'ui'), { recursive: true });
 copyFileSync(join(here, 'src', 'ui', 'popup.html'), join(distDir, 'ui', 'popup.html'));
