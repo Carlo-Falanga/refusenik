@@ -249,3 +249,29 @@ not `<input>`, and were deliberately left alone until their DOM is confirmed:
 
 Do not add attribute support speculatively. Confirm on the live widget first:
 a rule written against an imagined structure is worse than one left as it is.
+
+## Consent-or-pay walls: out of scope, and deliberately so
+
+Live checks on European news sites turned up something that is not a rule bug.
+lemonde.fr and spiegel.de (and elpais.com, same pattern) no longer offer a
+refusal at all. The choice is "Accept and continue" or "Subscribe": consent to
+tracking, or pay.
+
+There is nothing for this extension to refuse on those pages. Clicking the only
+available button would consent to tracking - the exact opposite of the product's
+purpose - so doing nothing is correct behaviour, not a gap to close.
+
+Two consequences worth carrying forward:
+
+1. Do NOT write rules for consent-or-pay walls. Any rule that "handles" one is
+   either useless or actively harmful.
+2. The market sizing behind "nine CMPs cover 95%" came from a consent-management
+   *software market* report, not from a survey of what actually renders banners
+   on the open web. It omits Sourcepoint entirely, which spiegel.de uses
+   (`sp_message_container_*`, `sp_message_iframe_*`) and which is common among
+   European publishers. News and media sites are largely not the addressable
+   market; ordinary corporate, e-commerce and service sites - where OneTrust,
+   Cookiebot and Didomi dominate and a reject button still exists - are.
+
+Sourcepoint is worth a rule only where it renders a genuine reject option.
+Confirm that on a live site before writing one.

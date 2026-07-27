@@ -75,26 +75,56 @@ function verdict(site, probe) {
   return 'ok';
 }
 
+/**
+ * Probes every frame, not just the top one.
+ *
+ * The extension runs its content script in all frames because some consent
+ * platforms render their UI inside a cross-origin iframe. A verifier that only
+ * looked at the top document would report "no banner" for exactly those cases -
+ * a false all-clear, which is worse than a reported failure because nobody
+ * investigates it.
+ */
+async function probeAllFrames(page, probeSource, ruleset) {
+  let fallback = { cmpId: null, steps: [], suspected: 0 };
+  for (const frame of page.frames()) {
+    try {
+      await frame.evaluate((src) => {
+        if (!window.__crProbe) {
+          const s = document.createElement('script');
+          s.textContent = src;
+          document.documentElement.appendChild(s);
+          s.remove();
+        }
+      }, probeSource);
+      const result = await frame.evaluate((rs) => (window.__crProbe ? window.__crProbe.run(rs) : null), ruleset);
+      if (!result) continue;
+      if (result.cmpId) return { ...result, frameUrl: frame.url() };
+      if (result.suspected > fallback.suspected) fallback = { ...result, frameUrl: frame.url() };
+    } catch {
+      // Cross-origin frames can refuse injection; skip rather than fail the site.
+    }
+  }
+  return fallback;
+}
+
 async function probeSite(context, site, ruleset, probeSource) {
   const page = await context.newPage();
   const record = { url: site.url, expect: site.expect || null };
   try {
     await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-    await page.addScriptTag({ content: probeSource });
 
     const startedAt = Date.now();
     let before = null;
     while (Date.now() - startedAt < DETECT_MAX_MS) {
-      before = await page.evaluate((rs) => window.__crProbe.run(rs), ruleset);
+      before = await probeAllFrames(page, probeSource, ruleset);
       if (before.cmpId) break;
       await page.waitForTimeout(DETECT_POLL_MS);
     }
-    // One last look once the window closes, so a late banner that never matched
-    // a known CMP is still reported as an uncovered banner rather than nothing.
     if (!before || !before.cmpId) {
-      before = await page.evaluate((rs) => window.__crProbe.run(rs), ruleset);
+      before = await probeAllFrames(page, probeSource, ruleset);
     }
     record.detectMs = before.cmpId ? Date.now() - startedAt : null;
+    record.frame = before.frameUrl || null;
     record.before = before;
     record.verdict = verdict(site, before);
 
