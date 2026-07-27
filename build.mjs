@@ -88,7 +88,9 @@ if (existsSync(localesDir)) {
 
 const iconsDir = join(here, 'icons');
 if (existsSync(iconsDir)) {
-  cpSync(iconsDir, join(distDir, 'icons'), { recursive: true });
+  // Sources and the store-listing icon are not part of the shipped package.
+  const shipped = (path) => !path.endsWith('.svg') && !path.endsWith('icon-512.png');
+  cpSync(iconsDir, join(distDir, 'icons'), { recursive: true, filter: shipped });
 }
 
 console.log(`Build complete: ${distDir}`);

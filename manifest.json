@@ -18,9 +18,22 @@
   },
   "permissions": ["storage", "alarms"],
   "host_permissions": ["<all_urls>"],
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
     "default_title": "__MSG_popupTitle__",
-    "default_popup": "ui/popup.html"
+    "default_popup": "ui/popup.html",
+    "default_icon": {
+      "16": "icons/icon-dark-16.png",
+      "32": "icons/icon-dark-32.png"
+    },
+    "theme_icons": [
+      { "light": "icons/icon-light-16.png", "dark": "icons/icon-dark-16.png", "size": 16 },
+      { "light": "icons/icon-light-32.png", "dark": "icons/icon-dark-32.png", "size": 32 }
+    ]
   },
   "background": {
     "scripts": ["background.js"],
