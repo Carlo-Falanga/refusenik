@@ -160,6 +160,156 @@ describe('steps.js - setCheckbox', () => {
   });
 });
 
+describe('steps.js - setAriaToggle', () => {
+  test('does nothing and succeeds when the toggle is already in the desired state', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('div');
+    toggle.setAttribute('role', 'checkbox');
+    toggle.setAttribute('aria-checked', 'false');
+    document.body.appendChild(toggle);
+
+    let clickCount = 0;
+    toggle.addEventListener('click', () => { clickCount += 1; });
+
+    const step = { action: 'setAriaToggle', selector: { css: 'div' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, true);
+    assert.equal(clickCount, 0, 'a toggle already in the desired state must never be clicked');
+    assert.equal(toggle.getAttribute('aria-checked'), 'false');
+  });
+
+  test('clicks a toggle that disagrees with the desired state and verifies the resulting attribute', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('div');
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', 'true');
+    document.body.appendChild(toggle);
+
+    let clickCount = 0;
+    toggle.addEventListener('click', () => {
+      clickCount += 1;
+      // Mirrors the widget's own script: a click flips the toggle.
+      toggle.setAttribute('aria-checked', 'false');
+    });
+
+    const step = { action: 'setAriaToggle', selector: { css: 'div' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, true);
+    assert.equal(clickCount, 1);
+    assert.equal(toggle.getAttribute('aria-checked'), 'false');
+  });
+
+  test('supports aria-pressed as a fallback state attribute', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('button');
+    toggle.setAttribute('aria-pressed', 'true');
+    document.body.appendChild(toggle);
+
+    toggle.addEventListener('click', () => toggle.setAttribute('aria-pressed', 'false'));
+
+    const step = { action: 'setAriaToggle', selector: { css: 'button' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, true);
+    assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+  });
+
+  test('fails without clicking when aria-checked is absent', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('div');
+    toggle.setAttribute('role', 'checkbox');
+    document.body.appendChild(toggle);
+
+    let clickCount = 0;
+    toggle.addEventListener('click', () => { clickCount += 1; });
+
+    const step = { action: 'setAriaToggle', selector: { css: 'div' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, false);
+    assert.equal(clickCount, 0, 'an unreadable state must never be guessed at with a click');
+  });
+
+  test('fails without clicking when aria-checked is "mixed"', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('div');
+    toggle.setAttribute('role', 'checkbox');
+    toggle.setAttribute('aria-checked', 'mixed');
+    document.body.appendChild(toggle);
+
+    let clickCount = 0;
+    toggle.addEventListener('click', () => { clickCount += 1; });
+
+    const step = { action: 'setAriaToggle', selector: { css: 'div' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, false);
+    assert.equal(clickCount, 0);
+    assert.equal(toggle.getAttribute('aria-checked'), 'mixed');
+  });
+
+  test('fails when a click is emitted but the attribute does not change', async () => {
+    const { document } = makeDom().window;
+
+    const toggle = document.createElement('div');
+    toggle.setAttribute('role', 'checkbox');
+    toggle.setAttribute('aria-checked', 'true');
+    document.body.appendChild(toggle);
+    // No listener wired up: the widget does not actually respond, so the
+    // attribute stays put even though the click event fires.
+
+    const step = { action: 'setAriaToggle', selector: { css: 'div' }, checked: false };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, false);
+    assert.equal(toggle.getAttribute('aria-checked'), 'true', 'must never report success while consent stays unchanged');
+  });
+
+  test('all: true touches only the toggles that disagree with the desired state, in a mixed set', async () => {
+    const { document } = makeDom().window;
+
+    const states = ['true', 'false', 'true'];
+    const toggles = states.map((state) => {
+      const el = document.createElement('div');
+      el.setAttribute('role', 'checkbox');
+      el.className = 'consent-toggle';
+      el.setAttribute('aria-checked', state);
+      document.body.appendChild(el);
+      return el;
+    });
+
+    const clickCounts = toggles.map(() => 0);
+    toggles.forEach((el, i) => {
+      el.addEventListener('click', () => {
+        clickCounts[i] += 1;
+        el.setAttribute('aria-checked', 'false');
+      });
+    });
+
+    const step = { action: 'setAriaToggle', selector: { css: '.consent-toggle' }, checked: false, all: true };
+    const result = await runStep(step, document);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(clickCounts, [1, 0, 1], 'only the toggles not already false should have been clicked');
+    assert.ok(toggles.every((el) => el.getAttribute('aria-checked') === 'false'));
+  });
+
+  test('fails when no matching toggle is found', async () => {
+    const { document } = makeDom().window;
+    const step = { action: 'setAriaToggle', selector: { css: '.does-not-exist' }, checked: false };
+    const result = await runStep(step, document);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'not-found');
+  });
+});
+
 describe('steps.js - click simulation', () => {
   test('dispatches a realistic pointer/mouse sequence, not just a bare click', async () => {
     const { document } = makeDom().window;

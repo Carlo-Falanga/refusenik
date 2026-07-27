@@ -197,13 +197,55 @@ elemento in questa sessione (nessuna ispezione DOM live disponibile, e dedurlo d
 richiesta di questo step vieta esplicitamente). Non l'ho aggiunto. Se in futuro si ottiene un'ispezione
 live del widget TrustArc reale, questo è il candidato naturale per il primo uso reale di `textMatchRef`.
 
+## `setAriaToggle` — azione aggiunta, non ancora applicata a TrustArc/Quantcast classico
+
+Il punto 3 di questa lista è stato risolto lato motore: `src/engine/steps.js` implementa ora
+`setAriaToggle` (`selector`, `checked`, `all`), documentata in `docs/ARCHITETTURA.md`. Legge
+`aria-checked`/`aria-pressed`, clicca solo se lo stato letto differisce da quello desiderato, rilegge
+per verificare l'esito, e fallisce chiuso (nessun click) se lo stato non è `"true"`/`"false"` — incluso
+il tri-stato `"mixed"` o l'attributo assente. Copertura test in `test/steps.test.js`.
+
+**Le regole `trustarc_legacy_iframe` e `quantcast` in `rules.json` NON sono state riscritte** per usare
+questa azione, deliberatamente. Continuano a usare `setCheckbox` su `.switch[role='option']` e
+`.qc-cmp-toggle`, che restano probabilmente sbagliati per lo stesso motivo già segnalato sopra (non sono
+`<input>`, quindi `'checked' in el` è falso e `setCheckbox` salta silenziosamente quei target). In questa
+sessione non ho avuto accesso a uno strumento di ispezione DOM dal vivo (nessun Playwright disponibile):
+non ho potuto confermare se questi elementi espongano davvero `aria-checked`/`aria-pressed`, con quale
+valore a riposo, e se il click li porti effettivamente allo stato atteso. Riscrivere quelle due regole ora
+significherebbe cablare `setAriaToggle` su una struttura DOM immaginata — lo stesso errore, per un'altra
+via, di scrivere un `textMatch` indovinato o una `shadowPath` non verificata. Consegno quindi il
+meccanismo con i suoi test, e lascio le due regole com'erano.
+
+**Prossimo passo per chiudere questo punto**: ispezione dal vivo (Playwright o browser reale) di
+`.switch[role='option']` dentro l'iframe TrustArc Preference Manager e di `.qc-cmp-toggle` nella UI
+`qc-cmp-*` di Quantcast Choice classico — verificare l'attributo di stato esposto, il valore a riposo, e
+il comportamento post-click — prima di sostituire `setCheckbox` con `setAriaToggle` in quelle due regole.
+
 ## Cosa manca per dichiarare la v1 completa
 
-1. Conferma del nome del campo discriminatore di Step (`type` è un'assunzione, vedi sopra).
+1. Conferma del nome del campo discriminatore di Step (`type` è un'assunzione, vedi sopra) — **risolto**:
+   il campo è `action`, confermato dal contratto in `test/rules-integration.test.js`.
 2. Selettori per la nuova UI TrustArc iframe-free (post luglio 2026).
-3. Verifica se `setCheckbox` nell'engine gestisce anche toggle non-`<input>` (TrustArc, Quantcast
-   classico) — altrimenti serve un'azione nuova nello schema (es. `toggleSwitch`) per una prossima
-   release, secondo la stessa architettura ("si estende la tabella con una release").
+3. ~~Verifica se `setCheckbox` nell'engine gestisce anche toggle non-`<input>`~~ — **risolto**: aggiunta
+   l'azione `setAriaToggle` (vedi sezione sopra). Resta aperta l'applicazione alle regole TrustArc/
+   Quantcast classico, in attesa di ispezione dal vivo.
 4. Verifica in ambiente reale (non solo sorgente) di OneTrust, Didomi, Usercentrics, Osano — solo
    BigID e DataGrail sono stati confermati su un sito live in questa sessione.
 5. Copertura Usercentrics v3 (shadow DOM, `<usercentrics-root>`) — non indagata.
+
+## setAriaToggle: what the live inspection must check (step 2.1)
+
+`setAriaToggle` reads state from `aria-checked`, falling back to `aria-pressed`.
+Two current rules still use `setCheckbox` on elements that are almost certainly
+not `<input>`, and were deliberately left alone until their DOM is confirmed:
+
+- `trustarc_legacy_iframe` — `.switch[role='option']`. Note the role: per ARIA,
+  `role="option"` carries its state in **`aria-selected`**, not `aria-checked`.
+  If that holds, `setAriaToggle` would fail with `aria-state-missing` — safe, as
+  it refuses to click rather than risk inverting consent, but non-functional.
+  Confirm which attribute the widget actually exposes before rewiring; the
+  engine may need `aria-selected` added to the read order.
+- `quantcast` — `.qc-cmp-toggle`. Attribute unknown; check the same way.
+
+Do not add attribute support speculatively. Confirm on the live widget first:
+a rule written against an imagined structure is worse than one left as it is.

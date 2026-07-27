@@ -27,7 +27,7 @@ const ruleset = JSON.parse(readFileSync(rulesPath, 'utf8'));
 const labels = JSON.parse(readFileSync(labelsPath, 'utf8'));
 
 /** Must stay in sync with the switch in src/engine/steps.js. */
-const KNOWN_ACTIONS = new Set(['waitFor', 'click', 'setCheckbox', 'hide']);
+const KNOWN_ACTIONS = new Set(['waitFor', 'click', 'setCheckbox', 'setAriaToggle', 'hide']);
 
 describe('rules.json <-> engine contract', () => {
   test('the shipped ruleset (after textMatchRef resolution) passes the engine validator', () => {

@@ -1,10 +1,10 @@
 /**
  * Step executor for the CLOSED action set defined in docs/ARCHITETTURA.md:
- * `waitFor`, `click`, `setCheckbox`, `hide`.
+ * `waitFor`, `click`, `setCheckbox`, `setAriaToggle`, `hide`.
  *
  * Rules are pure data. This module never evaluates expressions, never
  * builds a Function from rule data, and never runs anything beyond the
- * four hard-coded actions below. An action outside this set is simply
+ * hard-coded actions below. An action outside this set is simply
  * ignored - it is not interpreted through any other code path. Extending
  * the action set means shipping a new engine version, not making the
  * interpreter generic.
@@ -90,6 +90,37 @@ function simulateClick(el) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Reads the current on/off state of a non-native ARIA toggle (a `div`/`span`
+ * with `role="checkbox"`/`role="switch"` and `aria-checked`, or a button-like
+ * element using `aria-pressed`). `aria-checked` takes precedence when both
+ * are present, since it is the attribute the two documented roles use.
+ *
+ * Returns `null` when neither attribute is present at all - there is nothing
+ * to read, so the caller must fail rather than guess a state.
+ */
+function readAriaToggleState(el) {
+  if (el.hasAttribute('aria-checked')) {
+    return { attr: 'aria-checked', raw: el.getAttribute('aria-checked') };
+  }
+  if (el.hasAttribute('aria-pressed')) {
+    return { attr: 'aria-pressed', raw: el.getAttribute('aria-pressed') };
+  }
+  return null;
+}
+
+/**
+ * Parses an ARIA boolean state string. Only the literal `"true"`/`"false"`
+ * values are meaningful. Anything else - missing, `"mixed"` (the valid
+ * tri-state value for `aria-checked`), or any other stray value - is
+ * unreadable and must be treated as ambiguous, never coerced into a guess.
+ */
+function parseAriaBooleanState(raw) {
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return null;
 }
 
 /**
@@ -221,6 +252,71 @@ async function runStep(step, root) {
           }
         }
         return changedAny ? { ...base, ok: true } : { ...base, ok: false, reason: 'no-checkbox-targets' };
+      }
+
+      case 'setAriaToggle': {
+        // A native checkbox can be *set*. A non-native ARIA toggle can only
+        // be *clicked*, and a click is an inversion: clicking a toggle that
+        // is already in the desired state flips it to the opposite one -
+        // silently turning a tracking category back on while the extension
+        // reports it as refused. So, per element: read the current state,
+        // click only if it disagrees with `checked`, then re-read and
+        // require the post-click state to match. Never guess, never click
+        // "just in case".
+        const targets = step.all
+          ? resolveAllSelector(step.selector, root)
+          : (() => {
+            const el = resolveSelector(step.selector, root);
+            return el ? [el] : [];
+          })();
+
+        if (targets.length === 0) return { ...base, ok: false, reason: 'not-found' };
+
+        const desired = Boolean(step.checked);
+        let allTargetsOk = true;
+        let failureReason = null;
+
+        for (const el of targets) {
+          try {
+            const state = readAriaToggleState(el);
+            if (!state) {
+              allTargetsOk = false;
+              failureReason = failureReason || 'aria-state-missing';
+              continue;
+            }
+
+            const current = parseAriaBooleanState(state.raw);
+            if (current === null) {
+              // Absent-but-attribute-present-with-junk, or the legitimate
+              // tri-state "mixed" value - both are unreadable for our
+              // purposes. Fail closed rather than pick a side.
+              allTargetsOk = false;
+              failureReason = failureReason || 'aria-state-ambiguous';
+              continue;
+            }
+
+            if (current === desired) {
+              // Already correct: touching it would invert it. Leave it alone.
+              continue;
+            }
+
+            simulateClick(el);
+
+            const after = parseAriaBooleanState(el.getAttribute(state.attr));
+            if (after !== desired) {
+              allTargetsOk = false;
+              failureReason = failureReason || 'aria-toggle-verify-failed';
+            }
+          } catch {
+            // One bad target must not prevent the others from being checked,
+            // but it must still count as a failure of the overall step - the
+            // popup's "refused" claim must stay true for every target.
+            allTargetsOk = false;
+            failureReason = failureReason || 'exception';
+          }
+        }
+
+        return allTargetsOk ? { ...base, ok: true } : { ...base, ok: false, reason: failureReason };
       }
 
       case 'hide': {
