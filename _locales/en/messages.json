@@ -1,0 +1,74 @@
+{
+  "extensionName": {
+    "message": "Cookie Refuser"
+  },
+  "extensionDescription": {
+    "message": "Refuses cookie consent banners on recognised consent platforms instead of hiding them."
+  },
+  "popupTitle": {
+    "message": "Cookie Refuser"
+  },
+  "statusRefused": {
+    "message": "Refused"
+  },
+  "statusFailed": {
+    "message": "Recognised, but failed"
+  },
+  "statusSuspected": {
+    "message": "Unhandled suspicious banner"
+  },
+  "statusNothing": {
+    "message": "Nothing to do"
+  },
+  "statusRevoked": {
+    "message": "Site access revoked"
+  },
+  "bodyNothing": {
+    "message": "No consent banner was found on this page."
+  },
+  "bodyRevoked": {
+    "message": "This extension has no permission to run on this site, so it could not check for a banner. Restore site access from the extension's settings to resume automatic refusal."
+  },
+  "bodyFailed": {
+    "message": "$CMP$ was recognised, but $FAILED$ of $TOTAL$ steps did not complete.",
+    "placeholders": {
+      "cmp": { "content": "$1" },
+      "failed": { "content": "$2" },
+      "total": { "content": "$3" }
+    }
+  },
+  "bodySuspected": {
+    "message": "No known consent platform was recognised, but this looks like a cookie banner. Reporting it helps add support for it."
+  },
+  "stepsSummaryPlural": {
+    "message": "$COUNT$ steps · $MS$ ms",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "ms": { "content": "$2" }
+    }
+  },
+  "stepsSummarySingular": {
+    "message": "1 step · $MS$ ms",
+    "placeholders": {
+      "ms": { "content": "$1" }
+    }
+  },
+  "reportButton": {
+    "message": "Report a problem"
+  },
+  "reportPreviewLabel": {
+    "message": "This exact text will be copied:"
+  },
+  "copyButton": {
+    "message": "Copy report"
+  },
+  "cancelButton": {
+    "message": "Cancel"
+  },
+  "copiedConfirmation": {
+    "message": "Copied to clipboard."
+  },
+  "copyFailedConfirmation": {
+    "message": "Could not copy automatically - select the text above and copy it manually."
+  }
+}

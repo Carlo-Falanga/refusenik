@@ -3,6 +3,7 @@
   "name": "Cookie Refuser (dev build)",
   "version": "0.1.0",
   "description": "Refuses cookie consent banners on recognised consent platforms instead of hiding them.",
+  "default_locale": "en",
   "browser_specific_settings": {
     "gecko": {
       "id": "{c3e9f1a2-6b7d-4d8e-9a1c-2f5b8e0d4a6c}",
@@ -17,6 +18,10 @@
   },
   "permissions": ["storage", "alarms"],
   "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "__MSG_popupTitle__",
+    "default_popup": "ui/popup.html"
+  },
   "background": {
     "scripts": ["background.js"],
     "type": "module"

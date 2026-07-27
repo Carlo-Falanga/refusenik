@@ -28,6 +28,7 @@
 import { detectCMP } from './detect.js';
 import { runFlow } from './steps.js';
 import { sendRuntimeMessage } from './browser-api.js';
+import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, OUTCOME_STATUS } from './messages.js';
 
 // Most CMPs surface within 1-3s; this window keeps a generous margin while
 // still bounding the observer's lifetime on pages where nothing ever appears.
@@ -52,7 +53,7 @@ function isTopFrame() {
 
 async function requestActiveRuleset() {
   try {
-    const ruleset = await sendRuntimeMessage({ type: 'cookieRefuser:getRuleset' });
+    const ruleset = await sendRuntimeMessage({ type: MESSAGE_GET_RULESET });
     return ruleset && Array.isArray(ruleset.cmps) ? ruleset : EMPTY_RULESET;
   } catch {
     return EMPTY_RULESET;
@@ -81,7 +82,7 @@ function currentDomain() {
 
 async function reportOutcome(payload) {
   try {
-    await sendRuntimeMessage({ type: 'cookieRefuser:outcome', ...payload });
+    await sendRuntimeMessage({ type: MESSAGE_OUTCOME, ...payload });
   } catch {
     /* Reporting must never break the host page. */
   }
@@ -91,13 +92,23 @@ async function tryHandleCMP(ruleset) {
   const cmp = detectCMP(ruleset, document);
   if (!cmp) return false;
 
+  // Timed and counted purely for the popup's own display (docs/ARCHITETTURA.md
+  // does not cover the UI). This is separate from - and much more detailed
+  // than - the opt-in problem report, which never leaves this browser
+  // instance's own local outcome map without an explicit click.
+  const startedAt = Date.now();
   const results = await runFlow(cmp.flow, document);
-  const failed = results.some((result) => !result.ok && !result.skipped && !result.ignored);
+  const durationMs = Date.now() - startedAt;
+  const failedStepCount = results.filter((result) => !result.ok && !result.skipped && !result.ignored).length;
 
   await reportOutcome({
     domain: currentDomain(),
     cmpId: cmp.id,
-    status: failed ? 'failed' : 'handled',
+    cmpName: cmp.name,
+    status: failedStepCount > 0 ? OUTCOME_STATUS.FAILED : OUTCOME_STATUS.HANDLED,
+    stepCount: results.length,
+    failedStepCount,
+    durationMs,
   });
 
   return true;
@@ -136,7 +147,7 @@ async function reportSuspiciousBannerIfAny() {
   // Deliberate product decision (docs/ARCHITETTURA.md, point 4): an
   // unrecognised banner is never acted upon. Only state for the popup's
   // report button is surfaced.
-  await reportOutcome({ domain: currentDomain(), cmpId: null, status: 'suspected-unhandled' });
+  await reportOutcome({ domain: currentDomain(), cmpId: null, status: OUTCOME_STATUS.SUSPECTED_UNHANDLED });
 }
 
 function observeForLateCMP(ruleset) {

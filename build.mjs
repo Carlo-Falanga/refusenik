@@ -14,6 +14,11 @@
  * loader (BUNDLED_RULESET_PATH) expects that exact path. Renaming happens
  * only here, at the packaging boundary - neither file is renamed at the
  * source.
+ *
+ * The popup (src/ui/) is bundled the same way as content/background: its
+ * script is an ES module at the source, esbuild flattens it into a
+ * self-contained IIFE so popup.html can load it with a plain <script> tag.
+ * popup.html/popup.css are static and are only copied across.
  */
 
 import { build } from 'esbuild';
@@ -47,10 +52,25 @@ await build({
   outfile: join(distDir, 'background.js'),
 });
 
+await build({
+  ...sharedOptions,
+  entryPoints: [join(here, 'src', 'ui', 'popup.js')],
+  outfile: join(distDir, 'ui', 'popup.js'),
+});
+
 copyFileSync(join(here, 'manifest.json'), join(distDir, 'manifest.json'));
 
 mkdirSync(join(distDir, 'rules'), { recursive: true });
 copyFileSync(join(here, 'src', 'rules', 'rules.json'), join(distDir, 'rules', 'ruleset.json'));
+
+mkdirSync(join(distDir, 'ui'), { recursive: true });
+copyFileSync(join(here, 'src', 'ui', 'popup.html'), join(distDir, 'ui', 'popup.html'));
+copyFileSync(join(here, 'src', 'ui', 'popup.css'), join(distDir, 'ui', 'popup.css'));
+
+const localesDir = join(here, '_locales');
+if (existsSync(localesDir)) {
+  cpSync(localesDir, join(distDir, '_locales'), { recursive: true });
+}
 
 const iconsDir = join(here, 'icons');
 if (existsSync(iconsDir)) {

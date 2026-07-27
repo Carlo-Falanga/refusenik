@@ -1,0 +1,239 @@
+/* The [hidden] attribute is how this popup shows and hides every optional
+   section. It works through the browser's default stylesheet, which ANY author
+   rule setting `display` defeats - author styles beat user-agent styles no
+   matter the specificity. Two elements here set `display: flex`, so without
+   this rule the report panel (payload preview and Cancel) and the meta block
+   stayed on screen permanently. Keep this first, and keep the !important. */
+[hidden] {
+  display: none !important;
+}
+
+/*
+ * Popup styling. Utilitarian and dense (uBlock Origin / Bitwarden register,
+ * not a marketing surface): system sans for text, monospace for data
+ * (domain, CMP id/name, step counts), one chromatic accent - the status dot
+ * only - carrying the state signal. Everything else stays neutral
+ * grayscale. No gradients, no shadows, no decorative spacing.
+ */
+
+:root {
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  --color-bg: #ffffff;
+  --color-surface: #f2f2f4;
+  --color-fg: #1a1a1c;
+  --color-fg-muted: #55555c;
+  --color-border: #d9d9dd;
+
+  --color-accent-good: #1e7e34;
+  --color-accent-bad: #b3261e;
+  --color-accent-caution: #97650a;
+  --color-accent-neutral: #8a8a90;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1c1c1f;
+    --color-surface: #29292d;
+    --color-fg: #ececee;
+    --color-fg-muted: #b1b1b8;
+    --color-border: #3a3a3f;
+
+    --color-accent-good: #4caf50;
+    --color-accent-bad: #ef5350;
+    --color-accent-caution: #f0a63a;
+    --color-accent-neutral: #9a9aa1;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 320px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.popup {
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.popup__header {
+  padding-bottom: var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.popup__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.popup__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.popup__status-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.popup__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-neutral);
+}
+
+.popup[data-state="refused"] .popup__dot {
+  background: var(--color-accent-good);
+}
+
+.popup[data-state="failed"] .popup__dot,
+.popup[data-state="revoked"] .popup__dot {
+  background: var(--color-accent-bad);
+}
+
+.popup[data-state="suspected"] .popup__dot {
+  background: var(--color-accent-caution);
+}
+
+.popup__cmp-name {
+  margin: 0 0 0 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+
+.popup__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+
+.popup__domain,
+.popup__steps {
+  margin: 0;
+}
+
+.popup__body {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.popup__divider {
+  margin: 0 0 var(--space-12);
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.popup__report {
+  padding-top: var(--space-4);
+}
+
+button {
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
+.popup__report-button,
+.popup__copy-button {
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+}
+
+.popup__report-button:hover,
+.popup__copy-button:hover {
+  border-color: var(--color-fg-muted);
+}
+
+.popup__report-panel {
+  margin-top: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.popup__report-label {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.popup__report-payload {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.popup__report-actions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.popup__report-actions .popup__copy-button {
+  flex: 1;
+}
+
+.popup__cancel-button {
+  flex: 0 0 auto;
+  padding: var(--space-8) var(--space-12);
+  background: transparent;
+  color: var(--color-fg-muted);
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+.popup__cancel-button:hover {
+  color: var(--color-fg);
+}
+
+.popup__report-confirmation {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: 12px;
+}

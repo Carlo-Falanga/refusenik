@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="color-scheme" content="light dark" />
+<title>Cookie Refuser</title>
+<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+<main class="popup" data-root data-state="nothing">
+  <header class="popup__header">
+    <h1 class="popup__title" data-i18n="popupTitle">Cookie Refuser</h1>
+  </header>
+
+  <section class="popup__status">
+    <p class="popup__status-line">
+      <span class="popup__dot" aria-hidden="true"></span>
+      <span class="popup__status-label" data-field="statusLabel"></span>
+    </p>
+    <p class="popup__cmp-name" data-field="cmpName" hidden></p>
+  </section>
+
+  <section class="popup__meta" data-field="metaSection" hidden>
+    <p class="popup__domain" data-field="domain"></p>
+    <p class="popup__steps" data-field="stepsSummary" hidden></p>
+  </section>
+
+  <p class="popup__body" data-field="body" hidden></p>
+
+  <section class="popup__report" data-field="reportSection" hidden>
+    <hr class="popup__divider" />
+    <button type="button" class="popup__report-button" data-action="open-report" data-i18n="reportButton">
+      Report a problem
+    </button>
+
+    <div class="popup__report-panel" data-field="reportPanel" hidden>
+      <p class="popup__report-label" data-i18n="reportPreviewLabel">This exact text will be copied:</p>
+      <pre class="popup__report-payload" data-field="reportPayload"></pre>
+      <div class="popup__report-actions">
+        <button type="button" class="popup__copy-button" data-action="copy-report" data-i18n="copyButton">Copy report</button>
+        <button type="button" class="popup__cancel-button" data-action="cancel-report" data-i18n="cancelButton">Cancel</button>
+      </div>
+      <p class="popup__report-confirmation" data-field="reportConfirmation" role="status" hidden></p>
+    </div>
+  </section>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
