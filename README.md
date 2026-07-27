@@ -84,7 +84,7 @@ Rules for several CMPs are adapted from [Consent-O-Matic](https://github.com/cav
 
 ## License
 
-Refusenik is licensed under the GNU General Public License v3.0 or later
-(GPL-3.0-or-later). See `LICENSE` for the full text and
+Refusenik is licensed under the GNU General Public License v3.0
+(GPL-3.0-only). See `LICENSE` for the full text and
 `src/rules/ATTRIBUTIONS.md` for third-party licensing notices on the rules
 adapted from Consent-O-Matic.
