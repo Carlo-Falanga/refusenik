@@ -87,3 +87,65 @@ export function getExtensionUrl(path) {
     return path;
   }
 }
+
+/**
+ * Registers `handler` for messages sent via sendRuntimeMessage (from any
+ * context - content script, popup, etc.). `handler(message, sender)` may
+ * return a value or a Promise to send back as the reply, or `undefined` to
+ * leave the message unanswered by this listener.
+ *
+ * Never throws; a missing runtime.onMessage API (e.g. plain Node, as in
+ * unit tests) is a silent no-op. Firefox resolves an async reply by letting
+ * the listener return a Promise directly; Chrome's callback-based listeners
+ * additionally need `sendResponse` plus a `true` return to keep the channel
+ * open, so both are covered here.
+ */
+export function addRuntimeMessageListener(handler) {
+  if (!extensionApi || !extensionApi.runtime || !extensionApi.runtime.onMessage) return;
+  try {
+    extensionApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      let result;
+      try {
+        result = handler(message, sender);
+      } catch {
+        return undefined;
+      }
+
+      if (result && typeof result.then === 'function') {
+        if (isPromiseNative) return result;
+        result.then(sendResponse).catch(() => sendResponse(undefined));
+        return true;
+      }
+
+      return result;
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Creates or replaces a named alarm. Never throws; a missing alarms API is a silent no-op. */
+export function alarmsCreate(name, alarmInfo) {
+  if (!extensionApi || !extensionApi.alarms || !extensionApi.alarms.create) return;
+  try {
+    extensionApi.alarms.create(name, alarmInfo);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Registers `handler(alarm)` to run whenever any alarm fires. Never throws. */
+export function addAlarmListener(handler) {
+  if (!extensionApi || !extensionApi.alarms || !extensionApi.alarms.onAlarm) return;
+  try {
+    extensionApi.alarms.onAlarm.addListener((alarm) => {
+      try {
+        handler(alarm);
+      } catch {
+        /* A single failed refresh must not unregister the listener. */
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+}

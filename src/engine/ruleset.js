@@ -17,13 +17,15 @@
  * - On ANY error, the engine stays on the last valid ruleset. It must never
  *   degrade to "no rules".
  *
- * NOTE ON SCOPE: MV3 needs a persistent context (background/service worker)
- * for a strict timer-based 12h schedule. No background entry point/manifest
- * was part of this task's scope. This module instead exposes
- * `maybeRefreshRuleset()`, which content.js calls once per page load and
- * which performs the remote check only if >=12h elapsed since the last
- * attempt. If a background script is introduced later, it can call the same
- * functions (e.g. from a `chrome.alarms` handler) with no changes here.
+ * OWNERSHIP: this module is only ever called from the background
+ * (src/engine/background.js). Content scripts never import it directly -
+ * they ask the background for the active ruleset over `runtime.sendMessage`,
+ * so the ruleset never needs to be exposed via `web_accessible_resources`
+ * and the remote endpoint is fetched at most once per refresh window rather
+ * than once per open tab. `maybeRefreshRuleset()` is 12h-gated internally
+ * (via storage, not a timer) and is invoked by the background both from its
+ * `browser.alarms` handler and once at startup, to also cover the case
+ * where the event page was unloaded across an entire window.
  */
 
 import { storageLocalGet, storageLocalSet, getExtensionUrl } from './browser-api.js';

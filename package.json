@@ -5,9 +5,14 @@
   "description": "WebExtension engine that automatically refuses cookie consent banners on known CMPs.",
   "type": "module",
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "build": "node build.mjs",
+    "lint:ext": "web-ext lint --source-dir=dist",
+    "start:firefox": "web-ext run --source-dir=dist"
   },
   "devDependencies": {
-    "jsdom": "^25.0.1"
+    "esbuild": "^0.28.1",
+    "jsdom": "^25.0.1",
+    "web-ext": "^10.5.0"
   }
 }

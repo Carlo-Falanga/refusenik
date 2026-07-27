@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Cookie Refuser (dev build)",
+  "version": "0.1.0",
+  "description": "Refuses cookie consent banners on recognised consent platforms instead of hiding them.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{c3e9f1a2-6b7d-4d8e-9a1c-2f5b8e0d4a6c}",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "match_about_blank": false,
+      "run_at": "document_idle"
+    }
+  ]
+}

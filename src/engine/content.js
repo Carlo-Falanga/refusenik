@@ -1,22 +1,30 @@
 /**
  * Content script orchestration.
  *
- * Runs at document_idle (per manifest configuration - outside this task's
- * scope), then:
+ * Registered with `all_frames: true` (manifest.json), because some CMPs
+ * (e.g. legacy TrustArc) render their UI inside a cross-origin iframe that a
+ * main-frame-only content script could never reach. Runs at document_idle in
+ * every frame, then:
  *  1. Tries to detect and handle a known CMP immediately.
  *  2. If none matched, observes the DOM for late-loading CMPs (many surface
  *     1-3s after load) via MutationObserver, bounded by a time window.
- *  3. If nothing ever matches, runs a conservative heuristic to flag a
- *     *suspected* (but unhandled) consent banner - purely informational,
- *     used by the popup's "report" button. The engine never acts on a
- *     heuristic match: uncertainty means we don't touch the page.
+ *  3. If nothing ever matches AND this is the top-level frame, runs a
+ *     conservative heuristic to flag a *suspected* (but unhandled) consent
+ *     banner - purely informational, used by the popup's "report" button.
+ *     The engine never acts on a heuristic match: uncertainty means we
+ *     don't touch the page. This step is deliberately skipped inside
+ *     sub-frames: an ad/tracking iframe full of consent-sounding text would
+ *     otherwise be flagged as a phantom banner on every such frame.
  *  4. Reports the local outcome to the extension's background/runtime
  *     (in-browser only - this is not telemetry to any server; see the
  *     privacy constraints in docs/ARCHITETTURA.md, which govern the actual
  *     opt-in reporting feature owned by the UI).
+ *
+ * The ruleset itself is never fetched here: the background script owns it
+ * (src/engine/background.js, src/engine/ruleset.js) and this content script
+ * only ever asks for the currently active one over `runtime.sendMessage`.
  */
 
-import { getActiveRuleset, maybeRefreshRuleset } from './ruleset.js';
 import { detectCMP } from './detect.js';
 import { runFlow } from './steps.js';
 import { sendRuntimeMessage } from './browser-api.js';
@@ -24,6 +32,32 @@ import { sendRuntimeMessage } from './browser-api.js';
 // Most CMPs surface within 1-3s; this window keeps a generous margin while
 // still bounding the observer's lifetime on pages where nothing ever appears.
 const LATE_CMP_OBSERVE_WINDOW_MS = 20000;
+
+// Well-formed, empty fallback used only if the background cannot be reached
+// at all (e.g. transient extension reload). Never "no rules" in a way that
+// would throw - just nothing to detect for this one page load.
+const EMPTY_RULESET = { schemaVersion: 1, generatedAt: new Date(0).toISOString(), rulesetVersion: 0, cmps: [] };
+
+/** True unless this script runs inside a sub-frame; see the module doc comment, point 3. */
+function isTopFrame() {
+  try {
+    return window.top === window;
+  } catch {
+    // Cross-origin access to `window.top` does not throw in current
+    // engines, but fail safe (treat as a sub-frame, i.e. suppress the
+    // heuristic) if that were ever to change.
+    return false;
+  }
+}
+
+async function requestActiveRuleset() {
+  try {
+    const ruleset = await sendRuntimeMessage({ type: 'cookieRefuser:getRuleset' });
+    return ruleset && Array.isArray(ruleset.cmps) ? ruleset : EMPTY_RULESET;
+  } catch {
+    return EMPTY_RULESET;
+  }
+}
 
 const HEURISTIC_MIN_Z_INDEX = 999;
 
@@ -133,14 +167,16 @@ function observeForLateCMP(ruleset) {
   setTimeout(async () => {
     if (settled) return;
     stop();
-    await reportSuspiciousBannerIfAny();
+    if (isTopFrame()) {
+      await reportSuspiciousBannerIfAny();
+    }
   }, LATE_CMP_OBSERVE_WINDOW_MS);
 }
 
-/** Entry point invoked once per page load. Never throws into the host page. */
+/** Entry point invoked once per page load (in every frame, per `all_frames: true`). Never throws into the host page. */
 export async function runContentScript() {
   try {
-    const ruleset = await maybeRefreshRuleset().catch(() => getActiveRuleset());
+    const ruleset = await requestActiveRuleset();
     const handledImmediately = await tryHandleCMP(ruleset);
     if (!handledImmediately) {
       observeForLateCMP(ruleset);
