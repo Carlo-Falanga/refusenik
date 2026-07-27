@@ -374,3 +374,33 @@ Uncovered banners, by fingerprint:
 Caveat on the `offersRefusal` flag in the report: it reads body text in the
 frame the fingerprint ran in, and returned false for sites that probably do
 offer a refusal. Treat it as a hint, not a measurement, until it is validated.
+
+## Non-regression run (step 2.3)
+
+`node tools/verify-rules.mjs --execute` over 48 sites, clicking for real and
+measuring the page before and after.
+
+**No site was left broken by the measures that matter.** Across every site
+where the extension acted: no scroll lock, no residual blocking overlay, no
+loss of text content, no loss of navigation. The failure that earned the
+incumbent its 3.11 rating - banner dismissed, page left frozen - did not occur
+once.
+
+Five sites logged a JavaScript error during the window. Four are not ours:
+
+- onetrust.com, ikea.com - `TurnstileError 600010`, Cloudflare bot detection
+  failing against a headless browser.
+- alfemminile.com - `Video Expired`, from a media player.
+- corriere.it - a null `classList`, on a consent-or-pay page where the
+  extension deliberately does nothing at all. That one is a useful control: it
+  proves these logs include the site's own errors.
+
+The fifth is ours, and confirmed by experiment. On osano.com, loading the page
+without refusing produces no errors; performing the refusal produces
+`TypeError: Cannot read properties of undefined (reading 'ANALYTICS')`. Osano's
+own script throws while processing our interaction.
+
+Impact is low but real: the page stays usable, and Osano appeared on exactly
+one of 48 sites - its own. Worth fixing before wide release, not before the
+next step. The likely cause is acting on their category toggles before their
+UI has finished initialising; try waiting on a settled state first.

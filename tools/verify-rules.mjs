@@ -84,6 +84,43 @@ function verdict(site, probe) {
  * a false all-clear, which is worse than a reported failure because nobody
  * investigates it.
  */
+/**
+ * Signals that say whether a page is still usable.
+ *
+ * "Do not break the page" is the blocking requirement, so it has to be
+ * measurable rather than eyeballed. The one that matters most is scroll
+ * locking: consent platforms set overflow:hidden on body or html to hold the
+ * page while their banner is up, and clear it when the banner is dismissed. If
+ * a refusal closes the banner without triggering that cleanup, the page stays
+ * frozen forever - banner gone, site unusable. That is precisely how the
+ * incumbent extension earned its 3.11 rating.
+ */
+async function usability(page) {
+  return page.evaluate(() => {
+    const overflowOf = (el) => {
+      const s = getComputedStyle(el);
+      return { overflow: s.overflow, overflowY: s.overflowY, position: s.position };
+    };
+    const blockingOverlays = [...document.querySelectorAll('div,aside,section,dialog')].filter((el) => {
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return (s.position === 'fixed' || s.position === 'sticky')
+        && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) !== 0
+        && (Number.parseInt(s.zIndex, 10) || 0) > 500
+        && r.width > innerWidth * 0.5 && r.height > innerHeight * 0.5;
+    }).length;
+    return {
+      body: overflowOf(document.body),
+      html: overflowOf(document.documentElement),
+      scrollLocked: /hidden|clip/.test(getComputedStyle(document.body).overflowY)
+        || /hidden|clip/.test(getComputedStyle(document.documentElement).overflowY),
+      blockingOverlays,
+      textLength: (document.body.innerText || '').length,
+      linkCount: document.querySelectorAll('a[href]').length,
+    };
+  });
+}
+
 async function probeAllFrames(page, probeSource, ruleset) {
   let fallback = { cmpId: null, steps: [], suspected: 0 };
   for (const frame of page.frames()) {
@@ -129,6 +166,9 @@ async function probeSite(context, site, ruleset, probeSource) {
     record.verdict = verdict(site, before);
 
     if (EXECUTE && before.cmpId) {
+      record.usabilityBefore = await usability(page);
+      const pageErrors = [];
+      page.on('pageerror', (e) => pageErrors.push(String(e).slice(0, 120)));
       await page.screenshot({ path: join(OUT_DIR, `${site.slug}-prima.png`) }).catch(() => {});
       // Execute the real flow through the engine, in the page, exactly as the
       // extension would - including the click simulation and waits.
@@ -137,8 +177,22 @@ async function probeSite(context, site, ruleset, probeSource) {
         if (cmp && window.__crRunFlow) await window.__crRunFlow(cmp.flow);
       }, { rs: ruleset, id: before.cmpId });
       await page.waitForTimeout(2500);
-      record.after = await page.evaluate((rs) => window.__crProbe.run(rs), ruleset);
+      record.after = await probeAllFrames(page, probeSource, ruleset);
+      record.usabilityAfter = await usability(page);
+      record.pageErrors = pageErrors;
       await page.screenshot({ path: join(OUT_DIR, `${site.slug}-dopo.png`) }).catch(() => {});
+
+      const b = record.usabilityBefore;
+      const a = record.usabilityAfter;
+      const broke = [];
+      // Scroll left locked after we acted, when it was not locked before, or
+      // still locked when the banner that justified it is gone.
+      if (a.scrollLocked && !record.after.cmpId) broke.push('scroll bloccato');
+      if (a.blockingOverlays > 0 && !record.after.cmpId) broke.push('overlay residuo');
+      if (a.textLength < b.textLength * 0.5) broke.push('contenuto sparito');
+      if (a.linkCount < b.linkCount * 0.5) broke.push('navigazione persa');
+      if (pageErrors.length) broke.push(`${pageErrors.length} errori JS`);
+      record.broke = broke;
     }
   } catch (error) {
     record.verdict = 'ERRORE';
@@ -168,7 +222,8 @@ async function main() {
     results.push(record);
     const found = record.before && record.before.cmpId ? record.before.cmpId : '-';
     const ms = record.detectMs !== null && record.detectMs !== undefined ? `${(record.detectMs / 1000).toFixed(1)}s` : '';
-    console.log(`${record.verdict.padEnd(26)} ${String(found).padEnd(22)} ${ms.padStart(5)}  ${site.url}`);
+    const dmg = record.broke && record.broke.length ? `  ROTTO: ${record.broke.join(', ')}` : (EXECUTE && record.usabilityAfter ? '  pagina integra' : '');
+    console.log(`${record.verdict.padEnd(26)} ${String(found).padEnd(22)} ${ms.padStart(5)}  ${site.url}${dmg}`);
   }
 
   await browser.close();
