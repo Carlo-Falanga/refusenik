@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedAt": "2026-07-27T16:00:00Z",
-  "rulesetVersion": 2,
+  "rulesetVersion": 3,
   "cmps": [
     {
       "id": "onetrust",
@@ -346,15 +346,16 @@
         {
           "action": "click",
           "selector": {
-            "css": ".osano-cm-button--type_denyAll, .osano-cm-button--type_deny"
+            "css": ".osano-cm-manage"
           },
           "optional": true
         },
         {
-          "action": "click",
+          "action": "waitFor",
           "selector": {
-            "css": ".osano-cm-manage"
+            "css": "#osano-cm-drawer-toggle--category_MARKETING, #osano-cm-drawer-toggle--category_PERSONALIZATION, #osano-cm-drawer-toggle--category_ANALYTICS, #osano-cm-drawer-toggle--category_STORAGE, #osano-cm-dialog-toggle--category_MARKETING, #osano-cm-dialog-toggle--category_PERSONALIZATION, #osano-cm-dialog-toggle--category_ANALYTICS, #osano-cm-dialog-toggle--category_STORAGE"
           },
+          "timeoutMs": 3000,
           "optional": true
         },
         {

@@ -194,6 +194,32 @@ describe('consent-or-pay walls: recognised without acting (docs/ARCHITETTURA.md,
   });
 });
 
+describe('Osano: the manage-panel path is used instead of the broken direct-deny button', () => {
+  const osano = ruleset.cmps.find((cmp) => cmp.id === 'osano');
+
+  test('the flow never clicks a denyAll/type_deny selector', () => {
+    // On the vendor's own site this button throws inside their script and
+    // leaves the banner open, so the flow must never target it.
+    const offenders = osano.flow.filter((step) => (
+      step.action === 'click'
+      && step.selector
+      && typeof step.selector.css === 'string'
+      && (step.selector.css.includes('denyAll') || step.selector.css.includes('type_deny'))
+    ));
+    assert.deepEqual(offenders, []);
+  });
+
+  test('a waitFor step precedes the setCheckbox step', () => {
+    // The category toggles do not exist in the DOM until the manage panel
+    // has rendered, so the flow must wait for them before setting them.
+    const waitForIndex = osano.flow.findIndex((step) => step.action === 'waitFor');
+    const setCheckboxIndex = osano.flow.findIndex((step) => step.action === 'setCheckbox');
+    assert.ok(waitForIndex !== -1, 'expected a waitFor step in the osano flow');
+    assert.ok(setCheckboxIndex !== -1, 'expected a setCheckbox step in the osano flow');
+    assert.ok(waitForIndex < setCheckboxIndex, 'waitFor must run before setCheckbox');
+  });
+});
+
 describe('Iubenda: the close-button fallback only ever fires on the exempted wording', () => {
   const resolved = resolveTextMatchRefs(ruleset, labels);
   const iubenda = resolved.cmps.find((cmp) => cmp.id === 'iubenda');
