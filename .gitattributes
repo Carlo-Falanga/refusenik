@@ -1,0 +1,7 @@
+# The published ruleset is signed byte for byte, and its detached signature is
+# checked against those exact bytes before the extension will parse it. Any
+# end-of-line conversion on checkout rewrites those bytes and invalidates the
+# signature, so these two files must always come out of git exactly as they
+# went in.
+site/ruleset.json -text
+site/ruleset.json.sig -text

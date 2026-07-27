@@ -23,7 +23,7 @@
 import { webcrypto } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, relative, isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const { subtle } = webcrypto;
 
@@ -111,7 +111,16 @@ async function keygen(privateKeyPath) {
   console.log(publicKeyBase64);
 }
 
-async function sign(privateKeyPath, rulesetPath) {
+/**
+ * Signs `rulesetPath` with the private key at `privateKeyPath`, writing the
+ * detached, base64-encoded signature to `<rulesetPath>.sig`.
+ *
+ * Exported so other local, offline tools (tools/publish-ruleset.mjs) can
+ * reuse this exact signing logic instead of duplicating it. The CLI
+ * behaviour below (`node tools/sign-ruleset.mjs sign ...`) is unaffected -
+ * this is the same function it already called.
+ */
+export async function sign(privateKeyPath, rulesetPath) {
   if (!privateKeyPath || !rulesetPath) {
     fail('usage: node tools/sign-ruleset.mjs sign <private-key-path> <ruleset-file>');
   }
@@ -154,6 +163,14 @@ async function main() {
   process.exit(1);
 }
 
-main().catch((error) => {
-  fail(error && error.message ? error.message : String(error));
-});
+// Only run the CLI when this file is executed directly (`node
+// tools/sign-ruleset.mjs ...`), not when it is imported by another script
+// (tools/publish-ruleset.mjs) to reuse sign(). Importing it must not have
+// the side effect of parsing process.argv as if it were the entrypoint.
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMainModule) {
+  main().catch((error) => {
+    fail(error && error.message ? error.message : String(error));
+  });
+}
