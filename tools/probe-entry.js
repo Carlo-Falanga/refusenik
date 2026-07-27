@@ -40,6 +40,33 @@ function probeFlow(cmp) {
   });
 }
 
+/**
+ * Fingerprints an unrecognised banner: the ids, classes and script hosts that
+ * identify which platform rendered it.
+ *
+ * Coverage is now driven by what actually appears on real sites rather than by
+ * a vendor list, so an unknown banner has to arrive already identified. Without
+ * this every unknown is a manual investigation, and manual investigations do
+ * not scale to the cadence this project competes on.
+ */
+function fingerprint() {
+  const marker = /consent|cookie|cmp|gdpr|privacy|didomi|onetrust|cybot|osano|usercentrics|sourcepoint|sp_message|quantcast|trustarc|truste|dg-consent|bigid/i;
+  const ids = [...new Set([...document.querySelectorAll('[id]')]
+    .map((e) => e.id).filter((i) => marker.test(i)))].slice(0, 8);
+  const classes = [...new Set([...document.querySelectorAll('[class]')]
+    .flatMap((e) => String(e.className || '').split(/\s+/))
+    .filter((c) => marker.test(c)))].slice(0, 8);
+  const scripts = [...new Set([...document.querySelectorAll('script[src]')]
+    .map((s) => { try { return new URL(s.src).hostname; } catch { return ''; } })
+    .filter((h) => marker.test(h) || /consent|cmp|privacy/i.test(h)))].slice(0, 6);
+  // Does the page offer any refusal at all? Consent-or-pay walls do not, and
+  // they are out of scope by decision - see src/rules/NOTE.md.
+  const text = (document.body && document.body.innerText || '').slice(0, 6000);
+  const offersRefusal = /reject|refuse|decline|rifiut|ablehn|refuser|rechaz|nur notwendige|only necessary|solo necessari/i.test(text);
+  const offersPay = /subscribe|abonn|suscrib|abbonat|s'abonner|ad-free|senza pubblicit/i.test(text);
+  return { ids, classes, scripts, offersRefusal, offersPay };
+}
+
 /** Heuristic used by the extension itself for "there is a banner we don't know". */
 function suspectedBanner() {
   const nodes = Array.from(document.querySelectorAll('div,aside,section,dialog'));
@@ -78,6 +105,7 @@ window.__crProbe = {
       cmpName: cmp ? cmp.name : null,
       steps: cmp ? probeFlow(cmp) : [],
       suspected: cmp ? 0 : suspectedBanner(),
+      fingerprint: cmp ? undefined : fingerprint(),
     };
   },
 };

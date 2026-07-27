@@ -275,3 +275,37 @@ Two consequences worth carrying forward:
 
 Sourcepoint is worth a rule only where it renders a genuine reject option.
 Confirm that on a live site before writing one.
+
+## What a 45-site sweep of real European sites actually found
+
+Coverage is now driven by observed frequency rather than by a vendor list.
+Results (`node tools/verify-rules.mjs`, Italian locale, clean profile):
+
+| CMP | Sites | Note |
+|---|---|---|
+| OneTrust | 9 | accenture, booking, otto.de, lidl.de, renfe, ikea, atlassian, cloudflare |
+| Didomi | 4 | subito.it, orange.fr, elpais.com |
+| TrustArc | 2 | poste.it |
+| Cookiebot | 1 | its own site only |
+| Osano | 1 | its own site only |
+| BigID | 1 | its own site only |
+
+OneTrust and Didomi are what matter: 13 of 18 confirmed hits. Cookiebot, Osano
+and BigID did not appear on a single site other than their vendor's own in a
+45-site sample - they cost nothing now that they exist, but they were never
+worth prioritising, and the original nine-CMP list badly mis-ranked them.
+
+Uncovered banners, by fingerprint:
+
+- **Iubenda** (`iubenda-cs-*`, `iub_cmp_*`) - repubblica.it. Widespread on
+  Italian sites and entirely absent from the original plan. Best candidate.
+- **Tealium** (`__tealiumGDPRecModal`, `consentAcceptAll`) - telekom.de.
+- **Consent-or-pay walls** - corriere.it (`privacy-cp-wall-reject-and-subscribe`),
+  repubblica.it. Out of scope by decision: recognise and say so, never act.
+- **In-house implementations** - mediaworld.it (`pwa-consent-layer-*`),
+  ryanair.com (`cookie-popup-with-overlay`). One-off markup, no platform behind
+  it. This is the per-site long tail EasyList drowned in; do not chase it.
+
+Caveat on the `offersRefusal` flag in the report: it reads body text in the
+frame the fingerprint ran in, and returned false for sites that probably do
+offer a refusal. Treat it as a hint, not a measurement, until it is validated.
