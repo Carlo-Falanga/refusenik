@@ -65,6 +65,12 @@
   "reportPreviewLabel": {
     "message": "This exact text will be copied:"
   },
+  "reportDestinationLabel": {
+    "message": "Paste it into a new issue at"
+  },
+  "reportDestinationLink": {
+    "message": "github.com/Carlo-Falanga/refusenik/issues"
+  },
   "copyButton": {
     "message": "Copy report"
   },

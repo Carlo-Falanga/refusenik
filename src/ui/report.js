@@ -22,11 +22,12 @@ export function buildReportPayload({ domain, cmpId, version }) {
 }
 
 // ---------------------------------------------------------------------------
-// TRANSPORT - the ONE place a report is actually sent anywhere. Where
-// reports ultimately land is a later, not-yet-decided piece of
-// infrastructure (docs/ARCHITETTURA.md); for now "sending" means putting the
-// exact previewed text on the clipboard so the user can paste it wherever
-// they choose. Replacing this with a real network call later is confined to
+// TRANSPORT - the ONE place a report is actually sent anywhere. Automated
+// delivery is a later, not-yet-decided piece of infrastructure
+// (docs/ARCHITETTURA.md); for now "sending" means putting the exact
+// previewed text on the clipboard, and the report panel (popup.html) tells
+// the user where to paste it: a new issue in the project's GitHub
+// repository. Replacing this with a real network call later is confined to
 // this one function - nothing else in the popup needs to change.
 // ---------------------------------------------------------------------------
 export async function sendReport(payloadText) {

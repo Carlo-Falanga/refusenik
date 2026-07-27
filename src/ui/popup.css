@@ -214,6 +214,30 @@ button:focus-visible {
   word-break: break-word;
 }
 
+.popup__report-destination {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: 12px;
+}
+
+.popup__report-link {
+  /* On its own line: at this width the URL otherwise wraps mid-word and splits
+     the account name across two lines. */
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--color-fg-muted);
+  text-decoration: underline;
+}
+
+.popup__report-link:hover {
+  color: var(--color-fg);
+}
+
+.popup__report-link:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
 .popup__report-actions {
   display: flex;
   gap: var(--space-8);
