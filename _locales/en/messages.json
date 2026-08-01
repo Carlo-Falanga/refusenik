@@ -27,7 +27,13 @@
     "message": "Site access revoked"
   },
   "bodyNothing": {
-    "message": "No consent banner was found on this page."
+    "message": "This page was checked; no consent banner was found here."
+  },
+  "bodyRefused": {
+    "message": "$CMP$ was recognised, and its cookie banner was refused.",
+    "placeholders": {
+      "cmp": { "content": "$1" }
+    }
   },
   "bodyRevoked": {
     "message": "This extension has no permission to run on this site, so it could not check for a banner. Restore site access from the extension's settings to resume automatic refusal."

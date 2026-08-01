@@ -111,6 +111,12 @@ function renderRefused(outcome) {
     fields.stepsSummary.textContent = formatStepsSummary(outcome.stepCount, outcome.durationMs);
     show(fields.stepsSummary);
   }
+  // Spelling out that the refusal was actually registered, not just that a
+  // platform was seen, is the whole point of this state: the cmp name and
+  // the step/timing line above are both compact, mono-spaced data - this is
+  // the one line that turns that data into "here is what happened".
+  fields.body.textContent = getMessage('bodyRefused', [outcome.cmpName || outcome.cmpId || '?']);
+  show(fields.body);
 }
 
 function renderFailed(outcome) {

@@ -67,6 +67,75 @@ export async function storageLocalSet(items) {
   }
 }
 
+/**
+ * True if this runtime exposes `storage.session` - an in-memory,
+ * per-browser-session store (cleared when the browser closes, never written
+ * to disk) that, unlike a plain module-level variable, survives a
+ * non-persistent event page being unloaded and later restarted by the
+ * browser. Firefox has shipped it since well before this extension's
+ * `strict_min_version` (manifest.json), so this should always be true in a
+ * real Firefox install; it is still checked defensively (rather than
+ * assumed) so a runtime that ever lacks it degrades to the ordered fallback
+ * documented on storageSessionGet()/storageSessionSet() below instead of
+ * throwing.
+ */
+function hasSessionStorage() {
+  return Boolean(extensionApi && extensionApi.storage && extensionApi.storage.session);
+}
+
+/**
+ * Reads one or more keys from storage.session. Never throws; resolves to {}
+ * on any failure, and - this is the ordered fallback promised above - also
+ * when `storage.session` itself is unavailable in this runtime. Callers
+ * (src/engine/background.js) already treat "nothing found" and "storage
+ * unavailable" identically (both mean "fall back to whatever is still in the
+ * in-memory cache"), so no separate availability check is needed at the call
+ * site.
+ */
+export async function storageSessionGet(keys) {
+  if (!hasSessionStorage()) return {};
+  try {
+    if (isPromiseNative) return (await extensionApi.storage.session.get(keys)) || {};
+    return (await callbackToPromise(extensionApi.storage.session.get, extensionApi.storage.session, keys)) || {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Writes items to storage.session. Never throws; a write that cannot
+ * actually persist (missing API, or any other failure) is silently dropped -
+ * the caller is left with whatever the in-memory cache already holds, the
+ * same degraded-but-not-crashing behaviour this extension had before
+ * storage.session existed.
+ */
+export async function storageSessionSet(items) {
+  if (!hasSessionStorage()) return;
+  try {
+    if (isPromiseNative) {
+      await extensionApi.storage.session.set(items);
+      return;
+    }
+    await callbackToPromise(extensionApi.storage.session.set, extensionApi.storage.session, items);
+  } catch {
+    /* Storage write failures must never crash the caller. */
+  }
+}
+
+/** Removes one or more keys from storage.session. Never throws. */
+export async function storageSessionRemove(keys) {
+  if (!hasSessionStorage()) return;
+  try {
+    if (isPromiseNative) {
+      await extensionApi.storage.session.remove(keys);
+      return;
+    }
+    await callbackToPromise(extensionApi.storage.session.remove, extensionApi.storage.session, keys);
+  } catch {
+    /* Storage write failures must never crash the caller. */
+  }
+}
+
 /** Sends a message to the extension's background/runtime. Never throws. */
 export async function sendRuntimeMessage(message) {
   if (!extensionApi || !extensionApi.runtime || !extensionApi.runtime.sendMessage) return undefined;
