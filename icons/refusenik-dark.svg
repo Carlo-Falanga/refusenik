@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="2" y="2" width="124" height="124" rx="26" fill="#14140F"/>
-  <path d="M38 100V28h32c14.4 0 24 8.6 24 21.5 0 9.6-5.3 16.6-14.1 19.6L96 100H76.5L62 72H56v28H38Zm18-42h12c5.6 0 9-3.1 9-8.2 0-5.1-3.4-8.2-9-8.2H56v16.4Z" fill="#EFEBE2"/>
+  <defs><clipPath id="refusenikDarkClip"><circle cx="64" cy="64" r="60"/></clipPath></defs>
+  <circle cx="64" cy="64" r="60" fill="#12120F"/>
+  <g clip-path="url(#refusenikDarkClip)">
+    <rect x="-30" y="52" width="188" height="24" fill="#F2EFE6" transform="rotate(-35 64 64)"/>
+  </g>
 </svg>
