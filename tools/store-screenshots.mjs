@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Produces the three 1280x800 screenshots used on the addons.mozilla.org
+ * Produces the four 1280x800 screenshots used on the addons.mozilla.org
  * listing (verification/store/01-refused.png, 02-unhandled.png,
- * 03-report-preview.png).
+ * 03-report-preview.png, 04-consent-or-pay.png).
  *
  * Every screenshot is a composite of two REAL Playwright captures:
  *  - a full 1280x800 screenshot of a real, live page, and
@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { build } from 'esbuild';
 
-import { MESSAGE_GET_TAB_STATE, OUTCOME_STATUS } from '../src/engine/messages.js';
+import { MESSAGE_GET_TAB_STATE, OUTCOME_STATUS, CMP_KIND } from '../src/engine/messages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -408,6 +408,111 @@ async function injectMeasureBundle(page, measureSource) {
   }, measureSource);
 }
 
+/**
+ * Navigates to a live "consent-or-pay" wall - a site whose Sourcepoint CMP
+ * offers no genuine refusal, only tracking consent or a paid subscription
+ * (src/rules/rules.json's `sourcepoint_consent_or_pay`, `kind: "consentOrPay"`).
+ * The engine recognises this and deliberately does nothing (src/engine/content.js's
+ * tryHandleCMP(): `isActionableKind(cmp.kind)` is false for this kind, and the
+ * only branch it takes is to report OUTCOME_STATUS.CONSENT_OR_PAY - no flow is
+ * ever run, exactly as if clicking the wall's only button meant consenting).
+ *
+ * zeit.de and spiegel.de both carry this rule (src/rules/NOTE.md, "Sourcepoint"
+ * section); zeit.de is used here. Both are picked live via Playwright, not
+ * cached: whichever of the two currently shows the wall on this run is used.
+ *
+ * Structural note, load-bearing for why this checks every frame rather than
+ * just the top document: Sourcepoint's message UI always renders inside a
+ * genuinely cross-origin iframe (a publisher's own first-party proxy
+ * subdomain, e.g. `consent-cdn.zeit.de` - confirmed live here, matching
+ * src/rules/NOTE.md's "Sourcepoint" finding). The real content script is
+ * injected into that iframe as its own independent instance (`all_frames`
+ * in manifest.json), so the frame that recognises the wall is the iframe,
+ * not the page the user is looking at. Detection therefore has to scan every
+ * frame, exactly as it does here.
+ *
+ * The domain shown to the user, however, is the TOP page's, not the frame's.
+ * That distinction used to be wrong: the content script reported its own
+ * `window.location.hostname`, so this very screenshot read
+ * `consent-cdn.zeit.de` instead of `zeit.de` - the CMP vendor's host in place
+ * of the site being visited, on every site whose banner lives in an iframe.
+ * It is now resolved in the background from the message sender's tab URL
+ * (src/engine/background.js, domainFromSenderTab), which is the only context
+ * that reliably knows the top-level URL. This function mirrors that: it
+ * detects per frame, and reports per tab.
+ */
+async function measureConsentOrPaySite(browser, measureSource, ruleset) {
+  const candidates = [
+    { url: 'https://www.zeit.de', locale: 'de-DE' },
+    { url: 'https://www.spiegel.de', locale: 'de-DE' },
+  ];
+
+  for (const { url, locale } of candidates) {
+    const context = await browser.newContext({
+      viewport: { width: WIDTH, height: HEIGHT },
+      deviceScaleFactor: 1,
+      locale,
+      colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+
+      const detected = await pollUntil(async () => {
+        for (const frame of page.frames()) {
+          try {
+            await injectMeasureBundle(frame, measureSource);
+            const result = await frame.evaluate((rs) => window.__crMeasure.detect(rs), ruleset);
+            if (result && result.kind === CMP_KIND.CONSENT_OR_PAY) {
+              return {
+                ...result,
+                frameHostname: new URL(frame.url()).hostname,
+                tabHostname: new URL(page.url()).hostname,
+              };
+            }
+          } catch {
+            // Cross-origin navigation still settling, or a frame that
+            // detached mid-scan - try the next frame/poll instead of failing.
+          }
+        }
+        return null;
+      });
+
+      if (!detected) {
+        console.log(`[measure] ${url} did not show a consent-or-pay wall within ${DETECT_MAX_MS}ms - trying the next candidate.`);
+        await context.close();
+        continue;
+      }
+
+      await page.waitForTimeout(500);
+      const bgPath = join(OUT_DIR, '_tmp-consent-or-pay-bg.png');
+      await page.screenshot({ path: bgPath });
+
+      console.log(`[measure] ${url} -> cmp=${detected.cmpId} (${detected.cmpName}), kind=${detected.kind}, ` +
+        `recognised in frame=${detected.frameHostname}, reported as tab domain=${detected.tabHostname} ` +
+        `(all measured live just now against the real page, via the real src/engine/detect.js, scanning every ` +
+        `frame the way the real per-frame content script does)`);
+
+      await context.close();
+
+      return {
+        bgPath,
+        outcome: {
+          status: OUTCOME_STATUS.CONSENT_OR_PAY,
+          domain: detected.tabHostname,
+          cmpId: detected.cmpId,
+          cmpName: detected.cmpName,
+        },
+      };
+    } catch (error) {
+      console.log(`[measure] ${url} failed (${error.message}) - trying the next candidate.`);
+      await context.close();
+    }
+  }
+
+  throw new Error('No consent-or-pay candidate (zeit.de, spiegel.de) showed a Sourcepoint consent-or-pay wall within the time budget - cannot build the "consent-or-pay" screenshot honestly.');
+}
+
 // ---------------------------------------------------------------------------
 // Real popup rendering.
 // ---------------------------------------------------------------------------
@@ -669,10 +774,16 @@ async function main() {
     const unhandled = await measureUnhandledSite(browser, measureSource, ruleset);
     tempPaths.push(unhandled.bgPath);
 
+    console.log('\n== Screenshot 4: consent-or-pay wall (zeit.de/spiegel.de, Sourcepoint - see measureConsentOrPaySite()) ==');
+    const consentOrPay = await measureConsentOrPaySite(browser, measureSource, ruleset);
+    tempPaths.push(consentOrPay.bgPath);
+    console.log('[domain] The wall is recognised inside Sourcepoint\'s proxy iframe (e.g. consent-cdn.zeit.de) but reported under the publisher domain the user is actually visiting, because the background resolves it from the sender tab rather than from the frame; see measureConsentOrPaySite()\'s doc comment.');
+
     const refusedPopupPath = join(OUT_DIR, '_tmp-popup-refused.png');
     const unhandledPopupPath = join(OUT_DIR, '_tmp-popup-unhandled.png');
     const reportPopupPath = join(OUT_DIR, '_tmp-popup-report.png');
-    tempPaths.push(refusedPopupPath, unhandledPopupPath, reportPopupPath);
+    const consentOrPayPopupPath = join(OUT_DIR, '_tmp-popup-consent-or-pay.png');
+    tempPaths.push(refusedPopupPath, unhandledPopupPath, reportPopupPath, consentOrPayPopupPath);
 
     await capturePopup(browser, {
       outcome: refused.outcome,
@@ -706,16 +817,28 @@ async function main() {
 
     console.log(`\n[report preview] exact text rendered by the real src/ui/report.js:\n${reportPayloadText}`);
 
+    await capturePopup(browser, {
+      outcome: consentOrPay.outcome,
+      expectedState: 'consent-or-pay',
+      openReport: false,
+      popupWidth,
+      manifestVersion: manifest.version,
+      messages,
+      outPath: consentOrPayPopupPath,
+    });
+
     const out1 = join(OUT_DIR, '01-refused.png');
     const out2 = join(OUT_DIR, '02-unhandled.png');
     const out3 = join(OUT_DIR, '03-report-preview.png');
+    const out4 = join(OUT_DIR, '04-consent-or-pay.png');
 
     await composite(browser, { bgPath: refused.bgPath, popupPath: refusedPopupPath, popupWidth, outPath: out1 });
     await composite(browser, { bgPath: unhandled.bgPath, popupPath: unhandledPopupPath, popupWidth, outPath: out2 });
     await composite(browser, { bgPath: unhandled.bgPath, popupPath: reportPopupPath, popupWidth, outPath: out3 });
+    await composite(browser, { bgPath: consentOrPay.bgPath, popupPath: consentOrPayPopupPath, popupWidth, outPath: out4 });
 
     console.log('\n== Verifying final dimensions ==');
-    for (const path of [out1, out2, out3]) {
+    for (const path of [out1, out2, out3, out4]) {
       const { width, height } = readPngDimensions(path);
       const ok = width === WIDTH && height === HEIGHT;
       console.log(`${path}: ${width}x${height} ${ok ? 'OK' : 'MISMATCH'}`);
@@ -743,6 +866,13 @@ async function main() {
       bgPath: unhandled.bgPath,
       popupWidth,
       popupHeight: readPngDimensions(reportPopupPath).height,
+    });
+    await verifyMargins(browser, {
+      label: '04-consent-or-pay.png',
+      finalPath: out4,
+      bgPath: consentOrPay.bgPath,
+      popupWidth,
+      popupHeight: readPngDimensions(consentOrPayPopupPath).height,
     });
 
     console.log('\nDone. Store screenshots written to verification/store/.');
