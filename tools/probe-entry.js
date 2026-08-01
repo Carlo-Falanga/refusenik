@@ -10,6 +10,7 @@
 import { detectCMP } from '../src/engine/detect.js';
 import { resolveSelector, resolveAllSelector } from '../src/engine/selector.js';
 import { runFlow } from '../src/engine/steps.js';
+import { findSuspiciousBanners, collectShadowAwareElements } from '../src/engine/suspect.js';
 
 /** Reports which selectors of a CMP's flow currently resolve on this page. */
 function probeFlow(cmp) {
@@ -51,12 +52,21 @@ function probeFlow(cmp) {
  */
 function fingerprint() {
   const marker = /consent|cookie|cmp|gdpr|privacy|didomi|onetrust|cybot|osano|usercentrics|sourcepoint|sp_message|quantcast|trustarc|truste|dg-consent|bigid/i;
-  const ids = [...new Set([...document.querySelectorAll('[id]')]
+  // Reuses the same shadow-DOM-aware, bounded traversal the "suspected
+  // banner" heuristic uses (src/engine/suspect.js) - a fingerprint gathered
+  // any other way could see ids/classes/scripts the extension itself never
+  // reaches (e.g. inside an open shadow root), which would fingerprint a
+  // banner the engine cannot actually detect.
+  const elements = collectShadowAwareElements(document);
+  const ids = [...new Set(elements
+    .filter((e) => e.id)
     .map((e) => e.id).filter((i) => marker.test(i)))].slice(0, 8);
-  const classes = [...new Set([...document.querySelectorAll('[class]')]
+  const classes = [...new Set(elements
+    .filter((e) => e.className)
     .flatMap((e) => String(e.className || '').split(/\s+/))
     .filter((c) => marker.test(c)))].slice(0, 8);
-  const scripts = [...new Set([...document.querySelectorAll('script[src]')]
+  const scripts = [...new Set(elements
+    .filter((e) => e.tagName === 'SCRIPT' && e.src)
     .map((s) => { try { return new URL(s.src).hostname; } catch { return ''; } })
     .filter((h) => marker.test(h) || /consent|cmp|privacy/i.test(h)))].slice(0, 6);
   // Does the page offer any refusal at all? Consent-or-pay walls do not, and
@@ -67,21 +77,13 @@ function fingerprint() {
   return { ids, classes, scripts, offersRefusal, offersPay };
 }
 
-/** Heuristic used by the extension itself for "there is a banner we don't know". */
+/**
+ * Heuristic used by the extension itself for "there is a banner we don't
+ * know" - see src/engine/suspect.js, imported directly rather than
+ * reimplemented (this file's own doc comment above).
+ */
 function suspectedBanner() {
-  const nodes = Array.from(document.querySelectorAll('div,aside,section,dialog'));
-  return nodes.filter((el) => {
-    try {
-      const s = getComputedStyle(el);
-      const fixed = s.position === 'fixed' || s.position === 'sticky';
-      const z = Number.parseInt(s.zIndex, 10) || 0;
-      const text = el.textContent || '';
-      return fixed && z > 500 && el.offsetHeight > 40
-        && /cookie|consent|privacy|gdpr|tracking/i.test(text) && text.length < 4000;
-    } catch {
-      return false;
-    }
-  }).length;
+  return findSuspiciousBanners(document).length;
 }
 
 // --execute mode drives the real flow executor, not a stand-in for it.

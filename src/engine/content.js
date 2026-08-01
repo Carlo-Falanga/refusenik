@@ -34,6 +34,7 @@ import { detectCMP, isActionableKind } from './detect.js';
 import { runFlow } from './steps.js';
 import { sendRuntimeMessage } from './browser-api.js';
 import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, OUTCOME_STATUS, CMP_KIND } from './messages.js';
+import { findSuspiciousBanners } from './suspect.js';
 
 // Most CMPs surface within 1-3s; this window keeps a generous margin while
 // still bounding the observer's lifetime on pages where nothing ever appears.
@@ -65,18 +66,17 @@ async function requestActiveRuleset() {
   }
 }
 
-const HEURISTIC_MIN_Z_INDEX = 999;
-
-// Best-effort, multi-language cue words for the "suspected banner" heuristic.
-// This does not drive any action - only the report-button state.
-const CONSENT_TERMS = [
-  'cookie', 'cookies', 'consent', 'privacy choices',
-  'rifiuta', 'accetta', 'consenso', 'cookie policy',
-  'ablehnen', 'zustimmen', 'einwilligung',
-  'accepter', 'refuser', 'consentement',
-  'rechazar', 'aceptar', 'consentimiento',
-];
-
+// This frame's own hostname - in a sub-frame (a CMP rendered in a
+// cross-origin iframe: Sourcepoint/TrustArc/BigID all do this in the wild),
+// that is the CMP's host, not the page the user is visiting. It is sent as
+// `domain` in every outcome below purely as a fallback: the background
+// (src/engine/background.js's domainFromSenderTab()) resolves the actual
+// top-level page from `sender.tab.url` whenever it can, and only falls back
+// to this value if that lookup fails (e.g. the `<all_urls>` host permission
+// was revoked for this tab). Deliberately not `window.top.location.hostname`
+// - that throws in a cross-origin sub-frame, and even when it doesn't throw
+// it would still be wrong in the one context (background) that actually
+// needs to be told, since `window`/`top` don't exist there at all.
 function currentDomain() {
   try {
     return window.location.hostname;
@@ -142,27 +142,13 @@ async function tryHandleCMP(ruleset) {
   return true;
 }
 
-function isSuspiciousBanner(el) {
-  try {
-    const style = window.getComputedStyle(el);
-    if (style.position !== 'fixed' && style.position !== 'sticky') return false;
-
-    const zIndex = parseInt(style.zIndex, 10);
-    if (Number.isNaN(zIndex) || zIndex < HEURISTIC_MIN_Z_INDEX) return false;
-
-    const text = (el.textContent || '').toLowerCase();
-    return CONSENT_TERMS.some((term) => text.includes(term));
-  } catch {
-    return false;
-  }
-}
-
+// The actual heuristic (shadow-DOM-aware, bounded, scored) lives in
+// suspect.js and is shared with tools/probe-entry.js so the two can never
+// diverge - see that module's doc comment for the full rationale.
 function findSuspiciousBanner() {
   try {
-    // Bounded, shallow scan only - walking the full DOM of an arbitrary
-    // third-party page is both slow and unnecessary for this heuristic.
-    const candidates = document.body ? Array.from(document.body.children) : [];
-    return candidates.find(isSuspiciousBanner) || null;
+    const [first] = findSuspiciousBanners(document.body || document);
+    return first || null;
   } catch {
     return null;
   }
