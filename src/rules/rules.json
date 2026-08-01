@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-27T16:00:00Z",
-  "rulesetVersion": 3,
+  "generatedAt": "2026-08-01T12:00:00Z",
+  "rulesetVersion": 5,
   "cmps": [
     {
       "id": "onetrust",
@@ -206,42 +206,71 @@
     },
     {
       "id": "usercentrics",
-      "name": "Usercentrics (v2 light-DOM widget)",
-      "priority": 8,
+      "name": "Usercentrics (v3 shadow-DOM widget, data-testid buttons)",
+      "priority": 10,
       "detect": [
         {
-          "css": ".uc-banner-wrapper, .uc-banner-content"
+          "shadowPath": [
+            "#usercentrics-root, #usercentrics-cmp-ui"
+          ],
+          "css": "[data-testid=\"uc-deny-all-button\"]"
         }
       ],
       "flow": [
         {
-          "action": "click",
+          "action": "waitFor",
           "selector": {
-            "css": "#uc-btn-more-info-banner"
+            "shadowPath": [
+              "#usercentrics-root, #usercentrics-cmp-ui"
+            ],
+            "css": "[data-testid=\"uc-deny-all-button\"]"
           },
+          "timeoutMs": 5000,
           "optional": true
         },
+        {
+          "action": "click",
+          "selector": {
+            "shadowPath": [
+              "#usercentrics-root, #usercentrics-cmp-ui"
+            ],
+            "css": "[data-testid=\"uc-deny-all-button\"]"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "usercentrics_classic_buttons",
+      "name": "Usercentrics (v3 shadow-DOM widget, class-based buttons, no data-testid)",
+      "priority": 10,
+      "detect": [
+        {
+          "shadowPath": [
+            "#usercentrics-root, #usercentrics-cmp-ui"
+          ],
+          "css": ".deny.uc-deny-button"
+        }
+      ],
+      "flow": [
         {
           "action": "waitFor",
           "selector": {
-            "css": ".uc-inner-content"
+            "shadowPath": [
+              "#usercentrics-root, #usercentrics-cmp-ui"
+            ],
+            "css": ".deny.uc-deny-button"
           },
-          "timeoutMs": 4000,
-          "optional": true
-        },
-        {
-          "action": "setCheckbox",
-          "selector": {
-            "css": ".uc-inner-content input[type=checkbox]:not(:disabled)"
-          },
-          "checked": false,
-          "all": true,
+          "timeoutMs": 5000,
           "optional": true
         },
         {
           "action": "click",
           "selector": {
-            "css": ".uc-save-settings-button"
+            "shadowPath": [
+              "#usercentrics-root, #usercentrics-cmp-ui"
+            ],
+            "css": ".deny.uc-deny-button"
           },
           "optional": true
         }
@@ -249,85 +278,216 @@
     },
     {
       "id": "quantcast",
-      "name": "Quantcast Choice (classic qc-cmp UI, TCF)",
+      "name": "Quantcast Choice CMP2 (qc-cmp2 UI, TCF)",
       "priority": 10,
       "detect": [
         {
-          "css": ".qc-cmp-ui-container"
+          "css": ".qc-cmp2-container"
+        },
+        {
+          "css": ".qc-cmp2-main"
         }
       ],
       "flow": [
         {
           "action": "click",
           "selector": {
-            "css": "#qc-cmp-purpose-button"
+            "css": "#disagree-btn"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#more-options-btn"
           },
           "optional": true
         },
         {
           "action": "waitFor",
           "selector": {
-            "css": ".qc-cmp-vendor-list-body, .qc-cmp-publisher-purposes-table"
+            "css": "#reject-all-btn"
           },
           "timeoutMs": 4000,
           "optional": true
         },
         {
-          "action": "setCheckbox",
+          "action": "click",
           "selector": {
-            "css": ".qc-cmp-vendor-list-body .qc-cmp-toggle-cell .qc-cmp-toggle, .qc-cmp-publisher-purposes-table .qc-cmp-toggle, .qc-cmp-vendors-purposes-table .qc-cmp-toggle"
+            "css": "#reject-all-btn"
           },
-          "checked": false,
-          "all": true,
           "optional": true
         },
         {
           "action": "click",
           "selector": {
-            "css": ".qc-cmp-save-and-exit"
+            "css": "#save-and-exit"
           },
           "optional": true
         }
       ]
     },
     {
-      "id": "quantcast_v2",
-      "name": "Quantcast Choice (data-tracking-opt-in UI, TCF)",
+      "id": "quantcast_consent_or_pay",
+      "name": "Quantcast Choice CMP2 (pay-to-reject wall, e.g. Reach plc)",
+      "kind": "consentOrPay",
+      "priority": 20,
+      "detect": [
+        {
+          "css": ".qc-cmp2-container"
+        },
+        {
+          "css": ".pp-pay"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "sourcepoint",
+      "name": "Sourcepoint (message iframe, genuine reject offered)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".message-container"
+        },
+        {
+          "css": ".sp_choice_type_13"
+        }
+      ],
+      "flow": [
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".sp_choice_type_13"
+          },
+          "timeoutMs": 5000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".sp_choice_type_13"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "sourcepoint_consent_or_pay",
+      "name": "Sourcepoint (Pur-Abo consent-or-pay wall, e.g. German publishers)",
+      "kind": "consentOrPay",
       "priority": 9,
       "detect": [
         {
-          "css": "[data-tracking-opt-in-overlay]"
+          "css": ".message-container"
+        },
+        {
+          "css": ".sp_choice_type_9"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "complianz",
+      "name": "Complianz",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".cmplz-cookiebanner"
+        },
+        {
+          "css": ".cmplz-btn.cmplz-deny"
         }
       ],
       "flow": [
         {
           "action": "click",
           "selector": {
-            "css": "[data-tracking-opt-in-learn-more]"
+            "css": ".cmplz-btn.cmplz-deny"
           },
           "optional": true
+        }
+      ]
+    },
+    {
+      "id": "cookieyes",
+      "name": "CookieYes",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".cky-consent-container"
         },
         {
-          "action": "waitFor",
+          "css": ".cky-btn.cky-btn-reject"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
           "selector": {
-            "css": "[data-tracking-opt-in-overlay] [data-tracking-opt-in-save]"
+            "css": ".cky-btn.cky-btn-reject"
           },
-          "timeoutMs": 4000,
           "optional": true
+        }
+      ]
+    },
+    {
+      "id": "commandersact",
+      "name": "Commanders Act / TagCommander",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#tc-privacy-wrapper"
         },
         {
-          "action": "setCheckbox",
+          "css": "#popin_tc_privacy, .tc-privacy-banner"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
           "selector": {
-            "css": "[data-tracking-opt-in-overlay] input[type=checkbox]"
+            "css": "#popin_tc_privacy button, .tc-privacy-banner button",
+            "textMatchRef": "necessaryOnly"
           },
-          "checked": false,
-          "all": true,
           "optional": true
         },
         {
           "action": "click",
           "selector": {
-            "css": "[data-tracking-opt-in-save]"
+            "css": "#popin_tc_privacy button, .tc-privacy-banner button",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "sirdata",
+      "name": "Sirdata",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#sd-cmp"
+        },
+        {
+          "css": "#__abconsent-cmp"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#sd-cmp button",
+            "textMatchRef": "necessaryOnly"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#sd-cmp button",
+            "textMatchRef": "rejectAll"
           },
           "optional": true
         }
@@ -494,6 +654,179 @@
         }
       ],
       "flow": []
+    },
+    {
+      "id": "consentmanager",
+      "name": "ConsentManager (cdn.consentmanager.net, open shadow-DOM rendering)",
+      "priority": 10,
+      "detect": [
+        {
+          "shadowPath": [
+            "#cmpwrapper"
+          ],
+          "css": "#cmpbox.cmpstyleroot"
+        },
+        {
+          "shadowPath": [
+            "#cmpwrapper"
+          ],
+          "css": "#cmpboxcontent"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "shadowPath": [
+              "#cmpwrapper"
+            ],
+            "css": "#cmpwelcomebtnno a, .cmpboxbtnno"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "shadowPath": [
+              "#cmpwrapper"
+            ],
+            "css": "#cmpwelcomebtncustom a, .cmpboxbtncustom"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "shadowPath": [
+              "#cmpwrapper"
+            ],
+            "css": ".cmpboxbtnreject.cmpboxbtnrejectcustomchoices"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "shadowPath": [
+              "#cmpwrapper"
+            ],
+            "css": ".cmpboxbtnreject.cmpboxbtnrejectcustomchoices"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "consentmanager_light_dom",
+      "name": "ConsentManager (cdn.consentmanager.net, light-DOM rendering)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#cmpbox.cmpstyleroot"
+        },
+        {
+          "css": "#cmpboxcontent"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#cmpwelcomebtnno a, .cmpboxbtnno"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#cmpwelcomebtncustom a, .cmpboxbtncustom"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".cmpboxbtnreject.cmpboxbtnrejectcustomchoices"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".cmpboxbtnreject.cmpboxbtnrejectcustomchoices"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "mms_pwa_consent_layer",
+      "name": "MediaMarkt/Saturn in-house PWA consent layer",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#mms-consent-portal-container"
+        },
+        {
+          "css": "#pwa-consent-layer-deny-all-button"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#pwa-consent-layer-deny-all-button"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "wpholding_cookie_consent",
+      "name": "WP Holding in-house cookie consent widget (wp.pl, ceneo.pl)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".cookie-consent-banner"
+        },
+        {
+          "css": ".js_cookie-consent-necessary"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".js_cookie-consent-necessary"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "emag_gdpr_cookie_banner",
+      "name": "eMAG in-house GDPR cookie banner",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".gdpr-cookie-banner"
+        },
+        {
+          "css": ".js-refuse"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".gdpr-cookie-banner .js-refuse",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
     }
   ]
 }

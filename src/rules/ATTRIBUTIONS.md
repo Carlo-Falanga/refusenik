@@ -1,6 +1,6 @@
 # Attribuzioni
 
-Le regole per i CMP **OneTrust, TrustArc, Cookiebot, Didomi, Usercentrics, Quantcast Choice (TCF), Osano**
+Le regole per i CMP **OneTrust, TrustArc, Cookiebot, Didomi, Osano**
 in `rules.json` sono state **adattate** (non copiate letteralmente: schema JSON diverso, set di azioni
 diverso, nessuna logica condizionale/ciclica) a partire dai selettori CSS e dalla logica di flusso
 osservabili nel progetto open source:
@@ -48,10 +48,15 @@ derivata dai file sorgente Consent-O-Matic elencati sotto.
 | `rules/trustarc_bar.json`, `rules/trustarc_frame_2022.json`, `rules/trustarc_popup_hider.json` | `trustarc_legacy_iframe` |
 | `rules/cookiebot.json` | `cookiebot` |
 | `rules/didomi.io.json` | `didomi` |
-| `rules/usercentrics.json` | `usercentrics` |
-| `rules/quantcast.json` | `quantcast` |
-| `rules/quantcast2.json` | `quantcast_v2` |
 | `rules/osano.json` | `osano` |
+
+**Nota di superamento**: questa tabella elencava in precedenza anche `rules/usercentrics.json` →
+`usercentrics` e `rules/quantcast.json`/`rules/quantcast2.json` → `quantcast`/`quantcast_v2`. Quei
+selettori (Consent-O-Matic, generazione precedente di entrambi i CMP: Usercentrics v2 light-DOM,
+Quantcast Choice `qc-cmp-ui-container`/`data-tracking-opt-in-overlay`) non trovavano più riscontro sul
+campo — verificato via ispezione DOM live in questa sessione, vedi `NOTE.md` — e sono stati **sostituiti
+integralmente** con regole ricavate da ispezione diretta del DOM (vedi sezione successiva). Nessun
+contenuto Consent-O-Matic rimane nelle regole `usercentrics` e `quantcast` attualmente in `rules.json`.
 
 ## CMP non derivati da Consent-O-Matic
 
@@ -63,6 +68,27 @@ usano questi due CMP:
 - DataGrail: `https://www.bedbathandbeyond.com` (cliente DataGrail confermato)
 
 Nessun contenuto Consent-O-Matic è stato usato per questi due CMP.
+
+**Usercentrics** (regola riscritta), **Quantcast Choice CMP2** (regola riscritta), **Sourcepoint**,
+**Complianz**, **CookieYes**, **Commanders Act / TagCommander** e **Sirdata** sono state ricavate
+allo stesso modo, da **ispezione diretta del DOM live** (Playwright) su siti reali, in questa sessione:
+- Usercentrics: `https://www.o2online.de`, `https://www.n26.com`, `https://www.deutsche-bank.de`
+  (widget v3 con web component a shadow DOM, host `#usercentrics-root`; `https://usercentrics.com`
+  stesso e `https://www.dm.de` espongono l'host ma non renderizzano il banner in modo affidabile in
+  questa sessione — vedi `NOTE.md`).
+- Quantcast Choice CMP2: `https://www.ilgiornale.it`, `https://www.liberoquotidiano.it`,
+  `https://www.open.online`, `https://index.hu`, `https://www.quantcast.com`,
+  `https://www.mirror.co.uk` (quest'ultimo per la variante pay-to-reject, vedi `NOTE.md`).
+- Sourcepoint: `https://www.bbc.co.uk` (reject genuino), `https://www.spiegel.de`,
+  `https://www.bild.de`, `https://www.zeit.de`, `https://www.sueddeutsche.de` (muro
+  consenti-o-abbonati, nessun reject in nessun livello, vedi `NOTE.md`).
+- Complianz: `https://complianz.io`.
+- CookieYes: `https://www.cookieyes.com`.
+- Commanders Act / TagCommander: `https://www.sparkasse.de`, `https://www.bouyguestelecom.fr`,
+  `https://www.credit-agricole.fr`.
+- Sirdata: `https://www.sirdata.com`, `https://www.01net.com`.
+
+Nessun contenuto Consent-O-Matic è stato usato per nessuno di questi CMP.
 
 ## Compatibilità con la licenza GPL-3.0-only del progetto
 
