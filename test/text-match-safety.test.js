@@ -12,13 +12,21 @@
  * acceptance/consent-granting wording. It must keep passing as labels.json
  * and rules.json evolve - it is not a one-time check.
  *
- * `necessaryOnly` is the one concept exempted from the blanket scan: real
- * CMPs phrase "reject everything but strictly necessary cookies" using
- * accept-flavoured or negated-consent wording in several languages (e.g.
- * "Accept Essentials Only", "Ohne Zustimmung fortfahren", "Continuer sans
- * accepter", "Continuar sin aceptar", "Continua senza accettare"). Those are
- * legitimate, and for the DataGrail case "Accept Essentials Only" is a
- * label directly confirmed by live inspection (see src/rules/NOTE.md).
+ * `necessaryOnly` is exempted from the blanket scan: real CMPs phrase
+ * "reject everything but strictly necessary cookies" using accept-flavoured
+ * or negated-consent wording in several languages (e.g. "Accept Essentials
+ * Only", "Ohne Zustimmung fortfahren", "Continuer sans accepter", "Continuar
+ * sin aceptar", "Continua senza accettare"). Those are legitimate, and for
+ * the DataGrail case "Accept Essentials Only" is a label directly confirmed
+ * by live inspection (see src/rules/NOTE.md).
+ *
+ * `acceptAll` is also exempted, for the opposite reason: it exists
+ * specifically to name acceptance wording. It is never used as a click
+ * target - src/engine/generic.js uses it exclusively as a veto (a candidate
+ * matching `acceptAll` is discarded, even if it also matches `rejectAll`) -
+ * so its variants being full of "accept"/"agree"-flavoured stems is exactly
+ * the point, not a leak.
+ *
  * Every OTHER concept must stay completely free of these stems.
  */
 
@@ -45,7 +53,7 @@ const FORBIDDEN_STEMS = [
   'agree', 'acconsent', 'zustimm', // agree / acconsento / zustimmen
 ];
 
-const EXEMPT_CONCEPTS = new Set(['necessaryOnly']);
+const EXEMPT_CONCEPTS = new Set(['necessaryOnly', 'acceptAll']);
 
 function containsForbiddenStem(text) {
   const normalized = String(text).toLowerCase();

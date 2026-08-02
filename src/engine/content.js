@@ -20,6 +20,11 @@
  *     don't touch the page. This step is deliberately skipped inside
  *     sub-frames: an ad/tracking iframe full of consent-sounding text would
  *     otherwise be flagged as a phantom banner on every such frame.
+ *     Right after it, in that same top-frame-only branch, the generic
+ *     rejection engine (src/engine/generic.js) gets one attempt at the same
+ *     unhandled banner - see that module's doc for its own, much stricter,
+ *     abstain-by-default pipeline. Its runtime mode (propose-only vs. act)
+ *     is resolved inside generic.js itself, not here.
  *  4. Reports the local outcome to the extension's background/runtime
  *     (in-browser only - this is not telemetry to any server; see the
  *     privacy constraints in docs/ARCHITETTURA.md, which govern the actual
@@ -35,6 +40,7 @@ import { runFlow } from './steps.js';
 import { sendRuntimeMessage } from './browser-api.js';
 import { MESSAGE_GET_RULESET, MESSAGE_OUTCOME, OUTCOME_STATUS, CMP_KIND } from './messages.js';
 import { findSuspiciousBanners } from './suspect.js';
+import { runGenericEngine } from './generic.js';
 
 // Most CMPs surface within 1-3s; this window keeps a generous margin while
 // still bounding the observer's lifetime on pages where nothing ever appears.
@@ -164,6 +170,37 @@ async function reportSuspiciousBannerIfAny() {
   await reportOutcome({ domain: currentDomain(), cmpId: null, status: OUTCOME_STATUS.SUSPECTED_UNHANDLED });
 }
 
+/**
+ * One attempt at the generic rejection engine (src/engine/generic.js), right
+ * after the suspected-banner report above and under the exact same gates
+ * (top frame only, only once the late-CMP window has fully elapsed). Its
+ * result is not yet wired into the outcome-reporting message above - see
+ * generic.js's own doc, step 7, for how its (currently propose-by-default)
+ * output is meant to be inspected instead. Never throws into the host page.
+ *
+ * KNOWN OPEN POINT, left deliberately unaddressed for now: even on a run
+ * where `runGenericEngine` resolves to `mode: 'act'` and actually clicks
+ * (and verifies) a refusal, the call above to `reportOutcome()` a few lines
+ * up still reports `OUTCOME_STATUS.SUSPECTED_UNHANDLED` for this same page
+ * load - the two calls do not currently talk to each other, so the popup
+ * would show "unhandled" on a page this module just successfully refused.
+ * Left as-is because: (1) the runtime default is `'propose'`, under which
+ * nothing is ever clicked, so this cannot yet misreport a real outcome to a
+ * real user; (2) fixing it (a new/adjusted OUTCOME_STATUS, threaded through
+ * messages.js/background.js/the popup) is exactly the kind of surface this
+ * module's own validation work (step 7) needs to inform first - reporting
+ * "handled" before that validation is trusted would be worse than
+ * reporting "unhandled" too conservatively. Revisit together with that
+ * validation pass, not before.
+ */
+async function runGenericRejectionIfAny() {
+  try {
+    await runGenericEngine(document.body || document);
+  } catch {
+    /* Must never break the host page. */
+  }
+}
+
 function observeForLateCMP(ruleset) {
   let settled = false;
   let observer;
@@ -194,6 +231,7 @@ function observeForLateCMP(ruleset) {
     stop();
     if (isTopFrame()) {
       await reportSuspiciousBannerIfAny();
+      await runGenericRejectionIfAny();
     }
   }, LATE_CMP_OBSERVE_WINDOW_MS);
 }

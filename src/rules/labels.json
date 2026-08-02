@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "note": "Tabella multilingua per il campo Selector.textMatch (vedi docs/ARCHITETTURA.md). Ogni concetto elenca varianti reali osservate su CMP live o traduzioni linguistiche standard del concetto inglese. Il livello di confidenza per singola voce è documentato in NOTE.md, non in questo file (lo schema non prevede un campo per la fonte).",
+  "schemaVersion": 2,
+  "note": "Tabella multilingua per il campo Selector.textMatch (vedi docs/ARCHITETTURA.md). Ogni concetto elenca varianti reali osservate su CMP live o traduzioni linguistiche standard del concetto inglese. Il livello di confidenza per singola voce è documentato in NOTE.md, non in questo file (lo schema non prevede un campo per la fonte). `acceptAll` (aggiunto in schemaVersion 2) è un caso a parte: non è mai usato come bersaglio di un click, solo come veto nel motore di rifiuto generico (src/engine/generic.js) - un candidato la cui etichetta corrisponde ad acceptAll viene scartato anche se corrisponde anche a rejectAll.",
   "concepts": {
     "rejectAll": {
       "en": ["Reject All", "Reject all", "Decline All", "Decline all", "Deny", "Deny All"],
@@ -77,6 +77,25 @@
       "ro": ["Setări cookie-uri", "Gestionează setările", "Personalizează preferințele"],
       "el": ["Ρυθμίσεις cookies", "Διαχείριση ρυθμίσεων", "Προσαρμογή προτιμήσεων"],
       "tr": ["Çerez ayarları", "Ayarları yönet", "Tercihleri özelleştir"]
+    },
+    "acceptAll": {
+      "en": ["Accept All", "Accept all", "Allow All", "Agree", "I Agree", "Accept"],
+      "it": ["Accetta tutto", "Accetta tutti", "Accetto", "Accetta"],
+      "de": ["Alle akzeptieren", "Akzeptieren", "Ich stimme zu"],
+      "fr": ["Tout accepter", "Accepter tout", "Accepter tous les cookies", "J'accepte"],
+      "es": ["Aceptar todo", "Aceptar todos", "Aceptar todas", "Acepto"],
+      "nl": ["Alles accepteren", "Alle cookies accepteren", "Accepteren"],
+      "pl": ["Zaakceptuj wszystkie", "Akceptuję wszystkie", "Akceptuj wszystko", "Zgadzam się"],
+      "pt": ["Aceitar tudo", "Aceitar todos os cookies", "Aceito"],
+      "da": ["Accepter alle", "Tillad alle", "Accepter alle cookies"],
+      "sv": ["Acceptera alla", "Tillåt alla", "Acceptera alla cookies"],
+      "nb": ["Godta alle", "Godta alle informasjonskapsler", "Tillat alle"],
+      "fi": ["Hyväksy kaikki", "Hyväksy kaikki evästeet", "Salli kaikki"],
+      "cs": ["Přijmout vše", "Přijmout všechny", "Přijmout všechny soubory cookie"],
+      "hu": ["Összes elfogadása", "Az összes elfogadása", "Elfogadom"],
+      "ro": ["Acceptă tot", "Acceptă toate", "Accept toate cookie-urile", "Sunt de acord"],
+      "el": ["Αποδοχή όλων", "Αποδοχή όλων των cookies", "Συμφωνώ"],
+      "tr": ["Tümünü kabul et", "Tüm çerezleri kabul et", "Kabul ediyorum"]
     }
   }
 }
