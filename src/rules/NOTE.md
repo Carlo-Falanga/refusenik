@@ -1076,3 +1076,350 @@ triggers the escalation, it cannot be fully ruled out that a sufficiently
 "trusted" IP/session would never see this challenge on deny either. That
 distinction would not change the conclusion here either way: this project
 still could not act on it from within the closed action set.
+
+## Third pass - 393-site sweep (verification/sweep-v4.json), fourteen
+## families, twelve new entries shipped, `rulesetVersion` bumped to 6
+
+All markers below were confirmed by live Playwright inspection in this
+session (`chromium.launch({ headless: true })`, a realistic desktop Chrome
+UA, per-site locale), not carried over from the sweep's own automated
+fingerprint or from any secondary source. Every actionable entry was
+exercised end-to-end with `tools/verify-rules.mjs --site <domain> --execute`
+before shipping; every result quoted below is from that tool unless noted as
+a manual multi-page reconstruction (kleinanzeigen.de, explained in its own
+section).
+
+**The sweep's own family grouping by shared marker substring (`cmp-`,
+`gdpr-info-`) turned out to describe unrelated platforms in several cases -
+confirmed by inspection, not assumed.** Of the seven domains named under
+"Clickio" in the task brief, only one (`ilfattoquotidiano.it`) actually runs
+Clickio; the other six turned out to be six different in-house or
+third-party widgets that happen to use the generic substring "cmp" in an id
+or class somewhere on the page. Each is documented as its own finding below,
+exactly as the project's own rule requires ("se sono davvero CMP distinti,
+scrivi regole separate").
+
+### Clickio CMP - confidence ALTA, but shipped as `consentOrPay`, NOT actionable
+
+`ilfattoquotidiano.it` runs Clickio (`clickiocmp.com`, `#cl-consent`,
+`clickio-cmp-*` classes, confirmed live). The first layer's top-left button,
+`[data-role="b_decline"]` ("Continua senza accettare"), looked at first like
+a clean one-click refusal - stable `data-role` attribute, always visible
+(unlike the buttons union `.cl-consent__buttons` further down, one of which
+carries `cl-consent__hidden`).
+
+**Clicking it does not produce a working page.** A before/decline/accept
+comparison (the same method already used for `ilgiornale.it`/`vodafone.it`/
+`rewe.de` above) found: declining injects a new element, `#fov-noconsent`
+(`.ovl-noconsent`, dynamically created - absent from the initial DOM,
+confirmed by its absence in the `mode: 'none'` and `mode: 'agree'` overlay
+scans, present only in the `mode: 'decline'` scan), a full-viewport
+`z-index: 9999999` blocking overlay reading (Italian): *"non riesci a
+leggere ilfattoquotidiano.it perché hai negato i consensi relativi alla
+pubblicità. Per continuare a leggerci accetta i consensi o diventa nostro
+Sostenitore"* ("you can't read us because you refused ad consent - accept,
+or become a Sostenitore/subscriber to keep reading without ads"). Its own
+two buttons are "Accetta i consensi" (accept) and "Rifiuta e Sostienici"
+(pay). There is no third path back to a readable page. This is a
+consent-or-pay wall wearing Clickio's decline button - the same pattern
+already documented for `mirror.co.uk`'s `quantcast_consent_or_pay` above,
+discovered here only because the wall is sprung by the click rather than
+present in the initial DOM.
+
+Because the wall only appears *after* the click, it cannot be used as a
+`detect` marker the way `.privacy-cp-wall` or `.pp-pay` were for the
+existing consent-or-pay entries - by the time it exists, the damage (the
+user is now blocked) is already done. The only sound response, consistent
+with "never click a button whose only observed effect is a wall", is to
+recognise the CMP from its pre-click markers and never invoke `flow` at all:
+shipped as `clickio_consent_or_pay` (`detect`: `#cl-consent` +
+`[data-role="b_decline"]`, `flow: []`). `tools/verify-rules.mjs --site
+ilfattoquotidiano.it --execute` now reports "pagina integra" precisely
+*because* nothing is clicked - the banner stays up, which is the honest
+outcome per this project's own design principle, not a regression from a
+draft that briefly shipped the click (caught before being verified live, not
+after).
+
+**Not generalised beyond this one site.** The `fov-noconsent` id is
+suspiciously generic ("no consent overlay #001", `data-name="ovl-noconsent-001"`)
+and was one of the markers the task brief itself listed for the whole
+family, which suggests this wall is a configurable Clickio *feature*
+(publisher-selectable), not a one-off custom build - but that is an
+inference, not a second confirmed site. Any other Clickio deployment must be
+inspected on its own before assuming either behaviour.
+
+### INPS in-house cookie banner (`inps_modalcookiebar`) - confidence ALTA
+
+Not Clickio at all: `inps.it`'s `cmp-*` hits are Adobe Experience Manager's
+own component-naming convention (`cmp-experiencefragment`, AEM's generic
+term for "component", nothing to do with cookie consent), a false positive
+in the sweep's marker matching. The real banner is `#modalcookiebar`, a
+plain Bootstrap modal with a genuine direct reject button,
+`#refuseAnalyticsBtn` (`onclick="rifiuta()"`, text "Rifiuta i cookie non
+tecnici"), next to `#acceptAllBtn` (`onclick="accedi()"`, "Accetta Tutti")
+and `#settingCookieBtn` (opens a second, unnecessary settings layer). "Rifiuta
+i cookie non tecnici" was not yet covered by any `rejectAll.it` variant
+(closest was "Rifiuta"/"Rifiuta tutto") - added, `textMatchRef: "rejectAll"`
+now gates the click. `--execute`: "pagina integra" (banner gone, no scroll
+lock, no overlay). Government site, likely INPS-specific; not assumed to
+generalise to other `.gov.it` properties.
+
+### Correos in-house cookie module (`correos_cookiesmodule`) - confidence ALTA
+
+Not Clickio either: `correos.es` runs its own Angular/Stencil web-component
+widget, `<correos-cdk-cookies-module>` (custom element tag, globally
+collision-proof by construction), rendering a `.cookiesmodule` wrapper with
+three buttons carrying `aria-label`s baked in from the component's own
+config attributes (`label-first-button="Rechazar todas las cookies"`, etc.).
+The reject button, `aria-label="Rechazar todas las cookies"` (visible text
+"RECHAZAR TODAS"), sits in the always-visible first layer next to "CONFIGURAR
+COOKIES" and "ACEPTAR TODAS" - no settings detour needed. "Rechazar todas"
+(feminine plural, agreeing with "cookies") is a distinct grammatical form
+from the existing `rejectAll.es` entries ("Rechazar todo"/"Rechazar todos")
+and was added rather than approximated with a near-miss substring, matching
+the standard this project already applied to eMAG's Romanian "Refuză toate".
+`--execute`: "pagina integra".
+
+### Ring Publishing / RASP CMP (`ringpublishing_rasp_cmp`) - confidence ALTA
+
+`onet.pl` (Ringier Axel Springer Polska) is not Clickio either, despite the
+sweep's marker list including `cmp.dreamlab.pl`/`cmp.ringpublishing.com`
+alongside Clickio's own hosts for this domain - it is the RASP group's own
+CMP (`#rasp_cmp`, `cmp-intro_*`/`cmp-details_*` classes). The first layer
+(`.cmp-intro_rejectAll`, misleadingly labelled by its own CSS class -  the
+visible text is "Ustawienia zaawansowane", "Advanced settings", not itself a
+refusal) has no direct one-click reject; clicking it reveals a details layer
+with a genuine one-click `.cmp-details_rejectAll` ("Nie wyrażam zgody" - "I
+do not consent"), distinct in both class and text from
+`.cmp-details_acceptAll`. "Nie wyrażam zgody" is a different phrase from the
+existing `rejectAll.pl` entry ("Nie zgadzam się" - "I don't agree") and was
+added rather than reused. Flow: click `.cmp-intro_rejectAll` → wait for
+`.cmp-details_rejectAll` → click it (`textMatchRef: "rejectAll"`).
+`--execute`: "pagina integra". A live post-refusal inspection additionally
+confirmed no residual scroll lock and (via screenshot) a fully normal,
+banner-free homepage - `#rasp_cmp` itself stays in the DOM afterwards
+(display:flex, non-empty innerHTML) but with no visible footprint, the same
+"kept but emptied" pattern already documented for `usercentrics.com`'s own
+shadow host and `wp.pl`'s suppressed banner elsewhere in this file.
+
+A maintainability note on that first step: the click on `.cmp-intro_rejectAll`
+carries no `textMatch` guard, unlike most steps in this ruleset that touch a
+button whose class name overstates what it does. That is intentional here,
+not an oversight - the class is misleading but the step itself is harmless,
+since all it does is open the details layer; it accepts nothing and the real
+refusal only happens on the guarded `.cmp-details_rejectAll` click that
+follows. Still, anyone refactoring this flow later and skimming class names
+rather than re-reading this note could easily mistake `.cmp-intro_rejectAll`
+for an already-sufficient reject click and drop the second step - it is worth
+re-reading this paragraph, not just the selector, before touching this entry.
+
+### heise.de Sourcepoint, Pur-Abo wall (`heise_sourcepoint_consent_or_pay`) - confidence ALTA, `consentOrPay`
+
+Also not Clickio - and also not the generic `sourcepoint`/
+`sourcepoint_consent_or_pay` entries above, because heise.de's variant does
+not expose the numeric `sp_choice_type_13`/`sp_choice_type_9` classes those
+entries key on anywhere in its first layer (confirmed by an exhaustive
+`[class*="sp_choice_type"]` scan). It is Sourcepoint (`cmp.heise.de`,
+`.message-container` genuinely present, just not fingerprinted by the
+earlier session's marker regex which didn't include the bare word
+"message"), reskinned with heise's own `cmp-banner`/`cmp-offer-*` classes and
+a "Pur-Abo" (ad-free subscription) upsell.
+
+Opening "Einstellungen" reveals a privacy-manager iframe
+(`cmp.heise.de/privacy-manager/...`) with **no reject-all button at all**:
+per-category "Zustimmen"/"Ablehnen" (accept/decline) button pairs, but the
+first category - "Speichern von oder Zugriff auf Informationen auf einem
+Endgerät" (storage/device access) - has **only** "Zustimmen", no "Ablehnen"
+option, labelled "Zustimmung erforderlich für kostenfreie Nutzung"
+("consent required for free use"). Declining every other category and
+clicking "Ausgewähltem zustimmen" ("agree to selection") leaves the banner
+in place (confirmed: page text length and link count identical
+before/after, frame list unchanged) - there is no way to reach a working,
+banner-free page without either accepting that one mandatory category or
+buying the Pur-Abo. This is the same "Pur-Abo consent-or-pay" pattern
+already documented for `spiegel.de`/`bild.de`/`zeit.de`/`sueddeutsche.de`
+under `sourcepoint_consent_or_pay`, just without that entry's
+`sp_choice_type_9` marker to key off. Shipped as a separate entry,
+`detect`: `.cmp-banner` + `.cmp-offer-pur-tile`, `flow: []`, `priority: 9`
+(deliberately below the generic actionable `sourcepoint`'s `10`, the same
+margin `sourcepoint_consent_or_pay` already uses, in case a future heise
+deployment ever adds a genuine `sp_choice_type_13` reject choice - the
+actionable entry should win that tie, not this recognition-only one).
+`--execute`: "pagina integra" (recognised, untouched).
+
+### wetter.com in-house CMP, contentpass wall (`wetter_contentpass_consent_or_pay`) - confidence ALTA, `consentOrPay`
+
+Not a vendor CMP: `wetter.com`'s `cmp-*` ids are its own in-house widget
+(`#cmp-wetter`, `#cmp-paywall`), offering exactly two choices: "Akzeptieren
+und weiter" (`#cmp-btn-accept`, accept and continue with ads) or "...oder mit
+contentpass" (`#cmp-btn-signup`, pay contentpass - a shared ad-free
+subscription used across several German publishers - 3,99€/month). The
+second layer's only other button is `#cmp-btn-accept-all` ("Alles
+akzeptieren"). No reject path exists anywhere. `detect`: `#cmp-paywall` +
+`#cmp-btn-signup`, `flow: []`. `--execute`: "pagina integra".
+
+### Ethyca Fides (`ethyca_fides`) - confidence ALTA (4/4 sites)
+
+Confirmed on all four named sites - `nytimes.com`, `wired.com`, `wired.it`,
+`arstechnica.com` (all Condé Nast, `privacy.condenastdigital.com`) - as the
+brief expected. This is the simplest entry in this batch: `#fides-reject-all-button`
+("Reject All") sits directly in the first-layer banner
+(`#fides-banner-container`) next to `#fides-manage-preferences-button` and
+`#fides-accept-all-button` - no second layer needed. `--execute`: "pagina
+integra" on all four (0.1-1.7s detection time).
+
+### Schibsted brand-level-consent / Sourcepoint (`schibsted_brand_level_sourcepoint`) - confidence ALTA (3/3 sites)
+
+`.brand-level-consent` (confirmed a real container div, `message-component
+message-column brand-level-consent`) turned out to be Sourcepoint again -
+this time using a **named** choice-type taxonomy
+(`sp_choice_type_ACCEPT_ALL`/`sp_choice_type_REJECT_ALL`/
+`sp_choice_type_SAVE_AND_EXIT`/`sp_choice_type_CANCEL`) instead of the
+numeric one (`sp_choice_type_11`/`_12`/`_13`) the existing generic
+`sourcepoint` entries key on - confirmed structurally unrelated, so there is
+no detect collision between this entry and the generic ones. Two renderings,
+confirmed live on all three named sites:
+
+- `dba.dk`: the privacy-manager panel (`cmpv2.dba.dk/privacy-manager/...`)
+  is already the first thing rendered - `.sp_choice_type_REJECT_ALL` ("Kun
+  nødvendige") is present directly, no settings click needed.
+- `blocket.se`/`finn.no`: the first layer (`cmpv2.<brand>/index.html`) only
+  offers "Godkänn alla"/accept (`sp_choice_type_11`) and "Hantera eller
+  avvisa"/manage-or-reject (`sp_choice_type_12`); clicking the latter opens
+  the same privacy-manager panel, which - confirmed live on both - has its
+  own top-level `.sp_choice_type_REJECT_ALL` ("Avvisa alla"), not buried
+  behind per-category toggling.
+
+Same "both paths, whichever no-ops" flow already used for `consentmanager`/
+Quantcast above: click `.sp_choice_type_REJECT_ALL` (works on dba.dk) → click
+`.sp_choice_type_12` (works on blocket.se/finn.no) → wait for
+`.sp_choice_type_REJECT_ALL` → click it again. `--execute`: "pagina integra"
+on all three.
+
+### eBay/Kleinanzeigen `gdpr-banner` - two entries, NOT one, because the
+### settings path is a full page navigation, not an in-page panel
+
+`#gdpr-banner` (confirmed on both sites) is genuinely the same underlying
+Adevinta/eBay Classifieds Group widget on both sites, but the two markets
+have diverged:
+
+- `ebay.it`: a direct `#gdpr-banner-decline` button ("Rifiuta tutto") sits
+  in the first layer next to `#gdpr-banner-accept`. One click suffices.
+  `--execute`: "pagina integra".
+- `kleinanzeigen.de`: no `#gdpr-banner-decline` exists at all - only
+  `#gdpr-banner-accept` and `#gdpr-banner-cmp-button` ("Datenschutzeinstellungen anpassen
+  oder ablehnen"). **Confirmed live, and initially misdiagnosed**: a first
+  pass assumed clicking `#gdpr-banner-cmp-button` swapped in a new panel
+  within the same document (an aria-labelled "Alle ablehnen und fortfahren"
+  button did appear after the click) and shipped a single four-step flow
+  spanning both. `tools/verify-rules.mjs --site kleinanzeigen.de --execute`
+  immediately failed with `Error: page.evaluate: Execution context was
+  destroyed, most likely because of a navigation` - reproduced twice, not a
+  transient network blip. A dedicated script listening to `framenavigated`
+  confirmed the real cause: `#gdpr-banner-cmp-button` performs a **full page
+  navigation** to `https://www.kleinanzeigen.de/gdpr?redirectTo=...`, a
+  dedicated GDPR settings page (`#gdpr-consent-management`) - what looked
+  like an in-page panel in the earlier manual check was actually that new
+  page's own DOM, inspected after the navigation had already completed.
+
+  A single `flow` cannot span a real page navigation - the JS execution
+  context the flow was running in is torn down mid-sequence, exactly what
+  the verifier's error surfaced (and what would just silently abandon the
+  content-script instance in the real extension too, without throwing
+  anywhere visible). The correct model, and what a real installed extension
+  already does for free via its own per-page content-script injection, is
+  two separate entries:
+  - `ebay_gdpr_banner`'s flow now stops after the settings click (2 steps:
+    try direct decline, else open settings) - it does not attempt the
+    cross-navigation steps.
+  - `kleinanzeigen_gdpr_consent_management_page`, a new entry whose `detect`
+    matches the dedicated `/gdpr` page itself (`#gdpr-consent-management` +
+    the aria-labelled button) and whose `flow` clicks
+    `button[aria-label="Datenschutzbestimmungen und Einstellungen ablehnen"]`
+    there. That aria-label is the only stable selector available - the
+    button carries no id, no `data-testid`, and only Tailwind utility
+    classes.
+
+  Re-verified after the fix: `tools/verify-rules.mjs --site
+  kleinanzeigen.de --execute` no longer errors (`ebay_gdpr_banner`'s
+  shortened flow completes cleanly), but its single-page probe model
+  cannot itself drive the second hop, so it reports `after.cmpId:
+  "kleinanzeigen_gdpr_consent_management_page"` (correctly detected on the
+  settings page, proving the first entry's job - getting there - worked)
+  with `broke: ["navigazione persa"]` - a false positive from comparing the
+  marketplace homepage's link count (290) against the dedicated legal
+  settings page's link count (87) mid-flow, not real content loss. The full
+  two-hop flow was instead verified by a standalone script driving both
+  steps in sequence exactly as the real extension's independent content-script
+  injections would: fresh load (292 links, `scrollLocked: true` while the
+  banner blocks the page) → click settings → land on `/gdpr` → click the
+  aria-labelled reject button → the page auto-redirects back to
+  `kleinanzeigen.de` (per its own `redirectTo` param) with the banner gone,
+  `scrollLocked: false`, and **294** links (more than the original 292, not
+  fewer) - a clean, complete refusal, confirmed end-to-end.
+
+### AutoScout24 CMP (`as24_cmp`) - confidence ALTA (2/2 sites)
+
+The brief's warning was well-founded and directly confirmed: the visible
+button classes (`_consent-decline_1lphq_67`, `_consent-accept_1lphq_114`)
+carry a `1lphq` build hash that will not survive the next deploy. Each
+button also carries a stable `data-testid`
+(`as24-cmp-decline-all-button`/`as24-cmp-accept-all-button`/
+`as24-cmp-partial-consent-button`), confirmed identical in structure on both
+`autoscout24.it` and `autoscout24.de` despite the hash differing between
+markets - the rule is anchored to `[data-testid="as24-cmp-decline-all-button"]`
+only, never to the hashed class. `detect`: `#as24-cmp-popup` + that
+`data-testid`. `--execute`: "pagina integra" on both.
+
+### Cookie Information / Piwik PRO (`cookieinformation_coi`) - confidence ALTA
+
+`#CookieConsent` (from the brief's marker list) does not exist as an
+element id on `cookieinformation.com` itself - the real container is
+`#coi-banner-wrapper`, with a genuine direct decline button, `#declineButton`
+(class `coi-banner__decline`, text "Decline all" - already covered verbatim
+by the existing `rejectAll.en` entry), next to `.coi-banner__accept`.
+`--execute`: "pagina integra".
+
+### GMX/WEB.DE, United Internet ad-consent-or-Premium wall (`united_internet_consent_or_pay`) - confidence ALTA (2/2 sites), `consentOrPay`
+
+Both `gmx.net` and `web.de` (both 1&1 Mail & Media / United Internet
+properties) serve an identical banner from a per-brand subdomain
+(`plus.gmx.net`/`plus.web.de`, a top-level navigated iframe, reached by
+plain `css` selectors the same way as the Sourcepoint/heise.de entries
+above, no `frame:` traversal needed). The only choices offered are
+"Akzeptieren und weiter" (`#save-all-pur`, accept - the `-pur` suffix is
+United Internet's own naming for their premium/ad-tracking bundle) or "Zum
+Abo ohne Fremdwerbung" (`#goto-abo`, subscribe to the ad-free Premium plan).
+Opening "Privacy Center" (`#privacy-center`) was checked for a hidden
+per-category opt-out and found not to have one: a screenshot of the panel
+shows exactly two processing-purpose toggles, both `checked` **and**
+`disabled` (impossible to switch off through the UI), each labelled "Wir,
+die 1&1 Mail & Media GmbH, benötigen Ihre Zustimmung..."/"Unsere Partner
+benötigen Ihre Zustimmung..." with no free alternative - the only other
+button is `#save-all` ("Allen zustimmen", accept all). Confirmed identical
+on both `gmx.net` and `web.de` (same ids, same button text, same locked
+toggles). `detect`: `#gdpr-info` + `#save-all-pur`, `flow: []`.
+`--execute`: "pagina integra" on both.
+
+### bmw.de - still not covered, confirmed again, not chased further
+
+No cookie-consent banner of any kind rendered in this session's headless
+run (only an unrelated Adobe ePaaS deprecation notice matched the `cmp-*`
+marker, exactly as already recorded in the Usercentrics-gap section above).
+`tools/verify-rules.mjs --site bmw.de --execute` reports "BANNER NON
+COPERTO". Plausibly geo/bot-gated for a non-residential IP rather than
+genuinely banner-free for a real visitor, but that remains a guess, not a
+finding - left uncovered and reported honestly.
+
+### `rulesetVersion` bumped to 6
+
+Thirteen new `cmps` entries (nine actionable, four `consentOrPay`) plus three
+`labels.json` additions (`rejectAll.it`: "Rifiuta i cookie non tecnici";
+`rejectAll.es`: "Rechazar todas"; `rejectAll.pl`: "Nie wyrażam zgody").
+Covered live, by domain: `ilfattoquotidiano.it` (recognised, not acted on),
+`inps.it`, `correos.es`, `onet.pl`, `heise.de` (recognised, not acted on),
+`wetter.com` (recognised, not acted on), `nytimes.com`, `wired.com`,
+`wired.it`, `arstechnica.com`, `dba.dk`, `blocket.se`, `finn.no`, `ebay.it`,
+`kleinanzeigen.de`, `autoscout24.it`, `autoscout24.de`,
+`cookieinformation.com`, `gmx.net`, `web.de` - 20 of the 21 domains named in
+the task brief. `bmw.de` remains uncovered (no banner observed).

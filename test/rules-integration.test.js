@@ -278,3 +278,40 @@ describe('Iubenda: the close-button fallback only ever fires on the exempted wor
     return new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { runScripts: undefined }).window.document;
   }
 });
+
+describe('eBay/Kleinanzeigen: gdpr-banner and the dedicated /gdpr page never both match the same DOM (src/rules/NOTE.md)', () => {
+  const resolved = resolveTextMatchRefs(ruleset, labels);
+
+  function domWithBody(html) {
+    return new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { runScripts: undefined }).window.document;
+  }
+
+  test('the two detects never both match: each entry\'s markers are absent from the other\'s DOM state', () => {
+    // #gdpr-banner is the first-layer widget both markets share; the
+    // dedicated /gdpr settings page only exists after kleinanzeigen.de's
+    // cmp-button drives a full page navigation away from this one, so the
+    // two DOM states - and their detect markers - can never coexist.
+    const bannerPage = domWithBody(`
+      <div id="gdpr-banner">
+        <button id="gdpr-banner-accept"></button>
+        <button id="gdpr-banner-decline"></button>
+      </div>
+    `);
+    const bannerCmp = detectCMP(resolved, bannerPage);
+    assert.ok(bannerCmp, 'expected a CMP to be detected on the banner state');
+    assert.equal(bannerCmp.id, 'ebay_gdpr_banner');
+    assert.equal(bannerPage.querySelector('#gdpr-consent-management'), null,
+      'the dedicated /gdpr page marker must not be present on the banner state');
+
+    const gdprPage = domWithBody(`
+      <div id="gdpr-consent-management">
+        <button aria-label="Datenschutzbestimmungen und Einstellungen ablehnen"></button>
+      </div>
+    `);
+    const gdprCmp = detectCMP(resolved, gdprPage);
+    assert.ok(gdprCmp, 'expected a CMP to be detected on the dedicated /gdpr page');
+    assert.equal(gdprCmp.id, 'kleinanzeigen_gdpr_consent_management_page');
+    assert.equal(gdprPage.querySelector('#gdpr-banner'), null,
+      'the banner marker must not be present on the dedicated /gdpr page');
+  });
+});

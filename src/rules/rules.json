@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-01T12:00:00Z",
-  "rulesetVersion": 5,
+  "generatedAt": "2026-08-02T12:00:00Z",
+  "rulesetVersion": 6,
   "cmps": [
     {
       "id": "onetrust",
@@ -827,6 +827,313 @@
           "optional": true
         }
       ]
+    },
+    {
+      "id": "clickio_consent_or_pay",
+      "name": "Clickio CMP (no-consent wall behind the decline button, e.g. ilfattoquotidiano.it)",
+      "kind": "consentOrPay",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#cl-consent"
+        },
+        {
+          "css": "[data-role=\"b_decline\"]"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "inps_modalcookiebar",
+      "name": "INPS in-house cookie banner",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#modalcookiebar"
+        },
+        {
+          "css": "#refuseAnalyticsBtn"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#refuseAnalyticsBtn",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "correos_cookiesmodule",
+      "name": "Correos in-house cookie module",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "correos-cdk-cookies-module"
+        },
+        {
+          "css": ".cookiesmodule"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "correos-cdk-cookies-module button[aria-label=\"Rechazar todas las cookies\"]",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "ringpublishing_rasp_cmp",
+      "name": "Ring Publishing / RASP CMP (dreamlab.pl, onet.pl)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#rasp_cmp"
+        },
+        {
+          "css": ".cmp-intro_rejectAll"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".cmp-intro_rejectAll"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".cmp-details_rejectAll"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".cmp-details_rejectAll",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "heise_sourcepoint_consent_or_pay",
+      "name": "heise.de (Sourcepoint, Pur-Abo consent-or-pay wall)",
+      "kind": "consentOrPay",
+      "priority": 9,
+      "detect": [
+        {
+          "css": ".cmp-banner"
+        },
+        {
+          "css": ".cmp-offer-pur-tile"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "wetter_contentpass_consent_or_pay",
+      "name": "wetter.com (in-house CMP, contentpass consent-or-pay wall)",
+      "kind": "consentOrPay",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#cmp-paywall"
+        },
+        {
+          "css": "#cmp-btn-signup"
+        }
+      ],
+      "flow": []
+    },
+    {
+      "id": "ethyca_fides",
+      "name": "Ethyca Fides (Condé Nast and others)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#fides-banner-container"
+        },
+        {
+          "css": "#fides-reject-all-button"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#fides-reject-all-button"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "schibsted_brand_level_sourcepoint",
+      "name": "Schibsted brand-level-consent (Sourcepoint, dba.dk/blocket.se/finn.no)",
+      "priority": 10,
+      "detect": [
+        {
+          "css": ".brand-level-consent"
+        },
+        {
+          "css": ".sp_choice_type_REJECT_ALL, .sp_choice_type_12"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": ".sp_choice_type_REJECT_ALL"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".sp_choice_type_12"
+          },
+          "optional": true
+        },
+        {
+          "action": "waitFor",
+          "selector": {
+            "css": ".sp_choice_type_REJECT_ALL"
+          },
+          "timeoutMs": 4000,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": ".sp_choice_type_REJECT_ALL"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "ebay_gdpr_banner",
+      "name": "eBay/Kleinanzeigen gdpr-banner",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#gdpr-banner"
+        },
+        {
+          "css": "#gdpr-banner-accept"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#gdpr-banner-decline",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": {
+            "css": "#gdpr-banner-cmp-button"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "kleinanzeigen_gdpr_consent_management_page",
+      "name": "Kleinanzeigen dedicated /gdpr consent management page",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#gdpr-consent-management"
+        },
+        {
+          "css": "button[aria-label=\"Datenschutzbestimmungen und Einstellungen ablehnen\"]"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "button[aria-label=\"Datenschutzbestimmungen und Einstellungen ablehnen\"]"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "as24_cmp",
+      "name": "AutoScout24 CMP",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#as24-cmp-popup"
+        },
+        {
+          "css": "[data-testid=\"as24-cmp-decline-all-button\"]"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "[data-testid=\"as24-cmp-decline-all-button\"]"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "cookieinformation_coi",
+      "name": "Cookie Information / Piwik PRO",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#coi-banner-wrapper"
+        },
+        {
+          "css": "#declineButton"
+        }
+      ],
+      "flow": [
+        {
+          "action": "click",
+          "selector": {
+            "css": "#declineButton",
+            "textMatchRef": "rejectAll"
+          },
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "united_internet_consent_or_pay",
+      "name": "GMX/WEB.DE (United Internet, ad-consent-or-Premium wall)",
+      "kind": "consentOrPay",
+      "priority": 10,
+      "detect": [
+        {
+          "css": "#gdpr-info"
+        },
+        {
+          "css": "#save-all-pur"
+        }
+      ],
+      "flow": []
     }
   ]
 }

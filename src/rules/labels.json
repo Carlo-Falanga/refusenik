@@ -4,12 +4,12 @@
   "concepts": {
     "rejectAll": {
       "en": ["Reject All", "Reject all", "Decline All", "Decline all", "Deny", "Deny All"],
-      "it": ["Rifiuta tutto", "Rifiuta tutti", "Rifiuta"],
+      "it": ["Rifiuta tutto", "Rifiuta tutti", "Rifiuta", "Rifiuta i cookie non tecnici"],
       "de": ["Alle ablehnen", "Ablehnen"],
       "fr": ["Tout refuser", "Refuser tout", "Refuser tous les cookies"],
-      "es": ["Rechazar todo", "Rechazar todos"],
+      "es": ["Rechazar todo", "Rechazar todos", "Rechazar todas"],
       "nl": ["Alles weigeren", "Alles afwijzen", "Alle cookies weigeren", "Weiger alle cookies"],
-      "pl": ["Odrzuć wszystkie", "Odrzuć wszystko", "Odrzuć wszystkie pliki cookie", "Nie zgadzam się"],
+      "pl": ["Odrzuć wszystkie", "Odrzuć wszystko", "Odrzuć wszystkie pliki cookie", "Nie zgadzam się", "Nie wyrażam zgody"],
       "pt": ["Rejeitar tudo", "Recusar tudo", "Rejeitar todos os cookies"],
       "da": ["Afvis alle", "Afvis alle cookies", "Afslå alle"],
       "sv": ["Avvisa alla", "Neka alla", "Avvisa alla cookies"],
