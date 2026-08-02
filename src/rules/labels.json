@@ -18,7 +18,7 @@
       "cs": ["Odmítnout vše", "Odmítnout všechny", "Odmítnout všechny soubory cookie"],
       "hu": ["Összes elutasítása", "Az összes elutasítása", "Minden elutasítása"],
       "ro": ["Respinge tot", "Respinge toate", "Refuz toate cookie-urile", "Refuză toate"],
-      "el": ["Απόρριψη όλων", "Απόρριψη όλων των cookies", "Απόρριψη όλων των αρχείων cookie"],
+      "el": ["Απόρριψη όλων", "Απόρριψη όλων των cookies", "Απόρριψη όλων των αρχείων cookie", "Δε συμφωνώ", "Δεν συμφωνώ"],
       "tr": ["Tümünü reddet", "Tüm çerezleri reddet", "Çerezleri reddet"]
     },
     "necessaryOnly": {

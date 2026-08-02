@@ -1423,3 +1423,386 @@ Covered live, by domain: `ilfattoquotidiano.it` (recognised, not acted on),
 `kleinanzeigen.de`, `autoscout24.it`, `autoscout24.de`,
 `cookieinformation.com`, `gmx.net`, `web.de` - 20 of the 21 domains named in
 the task brief. `bmw.de` remains uncovered (no banner observed).
+
+## Sourcepoint: calciomercato.com and sourcepoint.com, no direct reject in
+## the first layer - `sourcepoint_manage_reject` added, `rulesetVersion` 7
+
+Both sites were flagged as "our defect": the script host
+(`cdn.privacy-mgmt.com`) is the same Sourcepoint deployment the existing
+`sourcepoint`/`sourcepoint_consent_or_pay` entries already cover, but neither
+matched. Live inspection (Playwright, headless, the same UA the sweep uses)
+found the actual reason: unlike `bbc.co.uk` and the four German Pur-Abo
+sites already documented above, these two sites' **first layer never renders
+`sp_choice_type_13` at all** - only `sp_choice_type_12` ("Personalizzare i
+cookie" / "OPTIONS", open the privacy manager) and `sp_choice_type_11`
+("Sì, sono soddisfatto" / "AGREE", accept). The existing `sourcepoint` entry's
+`detect` requires `sp_choice_type_13` to be present up front (by design - see
+its own note above), so it correctly never matched a page that does not show
+it yet.
+
+**Before writing anything for sourcepoint.com, per this task's own
+instruction**: checked whether it suppresses its banner in headless mode the
+way `usercentrics.com` does. It does not - the banner rendered on every
+headless run in this session, confirmed both through `tools/verify-rules.mjs`
+and independently through ad hoc Playwright scripts, with a real, working
+reject path behind it. Proceeding was justified.
+
+Clicking `sp_choice_type_12` opens a **second, separate iframe**
+(`cdn.privacy-mgmt.com/privacy-manager/index.html`, a different document, not
+a DOM update inside the first iframe), confirmed live on both sites. Its
+choice-type buttons are `sp_choice_type_REJECT_ALL` ("Rifiuta tutto"/"REJECT
+ALL"), `sp_choice_type_ACCEPT_ALL` and `sp_choice_type_SAVE_AND_EXIT` (plus
+`sp_choice_type_CANCEL` on sourcepoint.com) - the same named taxonomy already
+used by `schibsted_brand_level_sourcepoint`, just not gated behind
+`.brand-level-consent` this time.
+
+New entry `sourcepoint_manage_reject` (priority **8**, deliberately *below*
+both `sourcepoint_consent_or_pay` (9) and `heise_sourcepoint_consent_or_pay`
+(9)):
+
+- `detect`: `.message-container` + (`.sp_choice_type_12` OR
+  `.sp_choice_type_REJECT_ALL`) - matches either the first-layer frame
+  (before the click, only `sp_choice_type_12` present) or the privacy-manager
+  frame (after the click, `sp_choice_type_REJECT_ALL` present) independently,
+  since each frame runs its own detect+flow (the same architecture already
+  documented for `sourcepoint` above: `all_frames`, no `frame:` traversal).
+- `flow`: click `sp_choice_type_REJECT_ALL`/`sp_choice_type_13` if already
+  present in this frame (optional, no-ops on the first-layer frame where
+  neither exists yet); click `sp_choice_type_12` (optional, opens the second
+  layer - no-ops once the reject click above already worked, since the
+  button is gone by then).
+
+**Why priority 8 and not simply extending `sourcepoint` itself**: the two
+consent-or-pay Sourcepoint entries (both priority 9) exist precisely because
+some deployments expose a "manage"/"Einstellungen" button that leads nowhere
+useful - clicking it reveals only accept-and-continue or subscribe, never a
+real reject (documented above for `spiegel.de`, `bild.de`, `zeit.de`,
+`sueddeutsche.de`, `heise.de`). If those sites' first layer also happens to
+show a generic "manage" button (plausible - `sp_choice_type_12` is a stable,
+vendor-wide taxonomy code, not per-site), a same-priority-10 extension of
+`sourcepoint` would tie against the correct `consentOrPay` classification and
+win, since 10 > 9 - silently reclassifying a real consent-or-pay wall as "we
+tried to refuse it, found nothing." Keeping `sourcepoint_manage_reject` at
+priority 8 makes that structurally impossible: wherever a `consentOrPay`
+entry's own detect also matches, it still wins the tie regardless of what
+else is present, and the new entry only ever gets to act when it is the sole
+match - exactly `calciomercato.com`'s and `sourcepoint.com`'s situation,
+confirmed live, and never a page already correctly recognised as
+consent-or-pay. An adversarial test in `test/new-cmp-rules.test.js` locks
+this down (`sp_choice_type_9` + `sp_choice_type_12` in the same DOM must
+still resolve to `sourcepoint_consent_or_pay`).
+
+**Verification caveat about `tools/verify-rules.mjs --execute` itself, not
+about this rule**: for a genuinely cross-origin iframe CMP (which Sourcepoint
+always is), the tool's `--execute` step drives the flow via a single
+`page.evaluate()` call, which only ever runs in the page's main frame. It
+cannot reach a selector that only exists inside the cross-origin message
+iframe, so for every Sourcepoint entry (this new one and the pre-existing
+`sourcepoint`) `--execute`'s own before/after comparison on the *detected*
+frame is a no-op in practice: `after.cmpId` and `usabilityAfter` come back
+identical to `before` even on `sport.sky.it` and `independent.co.uk`, sites
+whose direct-reject flow is known-good from earlier sessions. This is a
+limitation of the verifier's simulation, confirmed by direct comparison in
+this session, not a regression in the rule - out of scope to fix here since
+the task did not ask for changes to `tools/verify-sites.json` or the verifier
+itself.
+
+To actually exercise the flow end-to-end the way the real extension does
+(independent content-script instances in every frame, including one created
+*after* an earlier click), this session used a dedicated script that injects
+the same shipped engine modules into every frame Playwright reports,
+re-sweeping after each wait to catch newly created frames, exactly mirroring
+`all_frames: true`:
+
+- `calciomercato.com`: first-layer frame detects `sourcepoint_manage_reject`,
+  clicks `sp_choice_type_12`; the resulting privacy-manager frame
+  independently detects the same entry (via `sp_choice_type_REJECT_ALL`) and
+  clicks it. Result: `scrollLocked` goes from `true` to `false`, the blocking
+  overlay is gone, content and link count unchanged. A batch of ~40 page
+  errors (React error #418/#423/#425 hydration mismatches, plus one "called
+  without required arguments") appears - **isolated by experiment**: a
+  baseline run with no click at all produces the identical ~40 errors before
+  any interaction happens at all, so this is calciomercato.com's own
+  pre-existing script noise, the same class of finding already documented
+  above for `osano.com`/`ilgiornale.it`.
+- `sourcepoint.com`: same two-frame path, `scrollLocked` goes `true` (implied,
+  overlay present) to `false`, zero page errors both at baseline and after
+  the flow.
+- `sport.sky.it` and `independent.co.uk` (the two required Sourcepoint
+  control sites, `sourcepoint` entry itself untouched by this change): both
+  still detect `sourcepoint` and click `sp_choice_type_13` successfully
+  through the same all-frames script. `sport.sky.it` comes back fully clean
+  (`scrollLocked: false`, no errors). `independent.co.uk`'s `body{overflow-y:
+  hidden}` stays stuck after the click - **isolated by experiment**: an
+  unmodified baseline (no click at all) already shows the exact same locked
+  state, and clicking *Accept* instead of reject produces it too. This is
+  independent.co.uk's own pre-existing cleanup script, not something this
+  session's change touched or introduced (the `sourcepoint` entry's `detect`
+  and `flow` are byte-for-byte unchanged) - the same category of
+  pre-existing vendor bug already catalogued for `sparkasse.de`/`vodafone.it`
+  above.
+
+No control site regressed. `rulesetVersion` bumped to 7 for this addition.
+
+## windtre.it (Cookiebot behind `#cookieModal`) - NOT shipped, blocked from
+## live re-inspection, deliberately left uncovered
+
+Flagged as a Cookiebot deployment wrapped in a custom `#cookieModal`
+container that our `cookiebot` entry's `detect` (`#CybotCookiebotDialog`)
+does not match. One clean headless visit in this session did get past
+windtre.it's own bot defence (Radware Bot Manager, `validate.perfdrive.com` +
+hCaptcha) and returned a real fingerprint: ids `Cookiebot`,
+`CookieConsentStateDisplayStyles`, `cookieModal`, `CookiebotCustomScript`,
+`cookieModalStep1`, `cookieModalStep2`, `closeCookieModal`,
+`CybotCookiebotDialogBodyLevelButtonLevelOptinAllowallSelection`; classes
+`cookie-modal`, `CybotCookiebotHiddenIframe`, `CybotCookiebotOffscreenIframe`,
+`cmp-container`, `cookiebot-open-banner-step2`, `cookiebot-open-banner-step1`,
+`cmp-header`, `cmp-footer`; script host `consent.cookiebot.com`. This
+confirms the task's framing - it is genuinely Cookiebot underneath, wrapped
+in a fully custom two-step skin (`#cookieModal` > `#cookieModalStep1`
+simple choice, `#cookieModalStep2` presumably the detailed category panel) -
+and that at least one of Cookiebot's own generated ids
+(`CybotCookiebotDialogBodyLevelButtonLevelOptinAllowallSelection`, a
+category "select all" control) survives inside step 2.
+
+That fingerprint is capped at 8 ids/8 classes by design (`tools/probe-entry.js`,
+so a fingerprint stays a bounded hint rather than a full DOM dump), and it
+does not include a confirmed id, class or text for the actual decline/reject
+control - only a wrapper, a script host, two step containers and one
+category-selection checkbox. Every further attempt to inspect the real DOM
+in this session - more than ten, across the built-in verifier, ad hoc
+Playwright scripts, and a variant with `--disable-blink-features=
+AutomationControlled` plus a spoofed `navigator.webdriver` - was blocked:
+first by an hCaptcha challenge embedded in the page, then, on later
+attempts, by a full redirect of the top frame itself to
+`validate.perfdrive.com`. This escalation (challenge frame -> full redirect)
+matches an IP-level rate-limit response to repeated automated visits from
+the same address in a short window, the same failure class already
+documented above for `sparkasse.de` and `dm.de` - not evidence that a real
+visitor would ever see this challenge.
+
+**Not shipped, on principle, not just by omission**: the only concrete
+markers confirmed live are a wrapper and a script host - neither says
+anything about which button, if any, performs a genuine refusal versus a
+dismiss-without-refusing "close cookie modal" action
+(`closeCookieModal` is present as an id, and per the Iubenda
+`.iubenda-cs-close-btn` precedent above, a "close" affordance on a custom
+skin is exactly the kind of control that can silently mean "dismiss" rather
+than "refuse"). Writing a `detect`+`flow` from a wrapper id and a script host
+alone, without ever having seen the actual button markup, would be guessing
+at a selector - the one thing this project's own rules explicitly forbid.
+Left uncovered rather than shipped on partial evidence; a re-attempt from a
+different network path (or simply after the rate limit above cools down) is
+the natural next step, not a rewrite of this entry from what is already
+known.
+
+## Group B - six families, `rulesetVersion` bumped to 8
+
+Same discipline as Group A: every selector below was confirmed via live
+Playwright inspection this session, none carried over from a guess, and
+every "same platform" hypothesis in the brief was checked rather than
+assumed - two of the three named pairs turned out to be two unrelated
+platforms wearing similar names.
+
+### coolblue.nl and skyscanner.net - NOT the same platform, two separate
+### in-house entries
+
+Neither is a third-party CMP; both are the retailer's own hand-built widget.
+
+**`coolblue_cookie_banner`** - `<form id="cookie-banner-2025-form">`. The
+"Standaard" category (which, confirmed live, silently includes Google
+Analytics under the site's own "always necessary" umbrella) is rendered as
+checked+disabled checkboxes - genuinely impossible to uncheck through the
+UI, so this extension cannot do anything about it any more than a human
+visitor could. The "Gepersonaliseerd" category's checkboxes are present, not
+disabled, and unchecked by default. The two submit buttons
+("Alles accepteren" / "Zelf instellen") sit *outside* the `<form>` element
+and are wired to it only via the HTML5 `form="cookie-banner-2025-form"`
+attribute, each carrying a distinct `name="accept_cookie"` value
+(`all_categories` vs `selection`) - confirmed by reading the live attributes,
+not assumed from the visible button text. The flow unchecks every
+non-`:disabled` checkbox (defensive: guards against a stale consent cookie
+leaving them pre-checked) and submits via `value="selection"`, never
+`value="all_categories"`. `tools/verify-rules.mjs --site coolblue.nl
+--execute`: `after.cmpId: null`, `scrollLocked` true→false, no residual
+overlay - **isolated caveat**: 2 React hydration errors (#418) appear after
+our flow but not after a plain baseline; confirmed by experiment that
+clicking "Alles accepteren" produces zero errors while submitting via the
+"selection" pathway (with either a raw property set or a fully realistic
+Playwright click on the checkboxes) reproducibly triggers exactly one -
+the site's own hydration handling of that specific response, not something
+this rule's selectors or click sequencing causes.
+
+**`skyscanner_consent_banner`** - container `#consentBannerContent`. The
+first-layer "Accept all" button (`#acceptCookieButton`, never clicked here)
+sits next to a second button displayed as "Accept essential only" whose
+*class* is a per-build CSS-module hash (`_banner-actions__button--reject_
+1x9fe_154`, confirmed live, never used) but whose `data-testid` is
+`consentBannerRejectAll` - Skyscanner's own build-independent test
+identifier, self-describing and stable across deploys the way a hash is
+not. The flow clicks only `[data-testid="consentBannerRejectAll"]`.
+**Caveat, stated plainly**: skyscanner.net enforces PerimeterX bot defence
+that escalated mid-session from an embedded challenge iframe to redirecting
+the top frame itself, the same failure class as windtre.it in Group A. The
+selector and its exact live attribute chain were confirmed twice
+independently (once via the initial fingerprint probe, once via a full
+attribute dump including `data-testid`), but a clean before/after
+click-and-verify could not be completed in this session - every later
+attempt (six, well past the "2-3 tries" budget) hit the challenge before the
+banner rendered. Shipped on the strength of the `data-testid` confirmation
+(a self-describing, vendor-authored identifier is about as strong a
+non-guessed signal as this project ever anchors on elsewhere - e.g.
+CookieFirst's `data-cookiefirst-action` below), not on a completed
+click-through; flagged here rather than silently presented as fully proven.
+
+### techcrunch.com and axeptio.eu - NOT the same platform either;
+### axeptio.eu suppresses its own widget in headless
+
+**`google_funding_choices`** - techcrunch.com runs Google's own Funding
+Choices CMP, light DOM, container `.fc-consent-root`. The brief's warning
+about TechCrunch's numeric id (`cookieBanner-4424028`-style,
+`cookieBanner-242234635` confirmed live in this session) is well founded and
+respected: that id sits on the `<script>` loader tag, not the banner
+container, and is never referenced by this rule. The actual first layer
+exposes three buttons distinguished by Google's own stable, non-hashed class
+names: `fc-cta-consent` ("Consent", never clicked), `fc-cta-do-not-consent`
+("Do not consent", the flow's only click) and `fc-cta-manage-options`.
+`tools/verify-rules.mjs --site techcrunch.com --execute`: `after.cmpId:
+null`, `scrollLocked` true→false, zero page errors, but flagged "navigazione
+persa" (link count 980→327) - **isolated by experiment**: clicking "Consent"
+(accept) instead produces the *identical* drop, because the Funding Choices
+banner itself embeds hundreds of vendor-partner links that disappear once
+any choice is made, accept or refuse alike. Not a real loss of site
+navigation; a false positive of the verifier's link-count heuristic against
+a banner that happens to be link-heavy. Baseline (no interaction) also
+already shows a `TurnstileError` from Cloudflare bot defence, present with
+or without any click - the same category already catalogued for
+onetrust.com/ikea.com.
+
+**axeptio.eu**: not shipped. The company's own marketing site mounts an
+empty mount point (`#axeptio_overlay`, `div.axeptio_mount`) that stayed
+completely unpopulated - zero buttons, zero text - across repeated waits up
+to 25 seconds and two locales (en-US, fr-FR) in this session. This is the
+exact case this task's own brief asked to check for before writing anything
+(the `usercentrics.com`-own-site precedent from an earlier session): a CMP
+vendor's own site suppressing its widget for automated/headless visits.
+`#axeptio_consent_checkbox`, the other id in the original fingerprint, turned
+out to belong to an unrelated HubSpot newsletter-signup form's GDPR
+checkbox on the same page, not to any Axeptio cookie banner - confirmed by
+reading its actual ancestor chain live, not assumed from the name alone.
+Nothing written for Axeptio's actual widget in this session; it was never
+observed populated.
+
+### intesasanpaolo.com and skroutz.gr - the two-part trap, resolved on both
+
+The brief's warning ("both have `cookie-allowed` AND `cookie-denied` in the
+markup - verify with extreme care which is really the refusal") turned out
+to have a real, confirmed answer on the Italian site, and a *different*
+kind of the same trap turned up independently on the Greek one.
+
+**`intesasanpaolo_cookie_message`** - reading the live `outerHTML` (not just
+the ids) settled it: `#cookie-allowed`/`#cookie-allowed-desktop` display
+"Acconsento" (accept) and `#cookie-denied`/`#cookie-denied-desktop` display
+"Più opzioni" ("More options") - an `<a href="…/cookies.html">` link to a
+separate settings page, not a refusal of anything, despite the misleading
+id. The genuine refusal mechanism is the third control, `#cookie-chiudi`
+(the banner's own "X" close button): the page's own hidden disclosure copy,
+present in the DOM text (not visually highlighted but real, machine-readable
+text, required by GDPR when a dismiss action doubles as an implicit
+decision) states verbatim: *"Cliccando sulla \[x\] di chiusura del banner,
+non acconsenti all'uso dei cookie di profilazione"* ("Clicking the banner's
+close \[x\] means you do NOT consent to profiling cookies"). The flow clicks
+only `#cookie-chiudi`; it never references `#cookie-allowed` or
+`#cookie-denied` in any form, and a dedicated adversarial test locks this
+down. `tools/verify-rules.mjs --site intesasanpaolo.com --execute`:
+`scrollLocked` unaffected (was already `false` before any interaction),
+banner gone, flagged "2 errori JS" - **isolated by experiment**: the
+baseline (no click) already shows 2 of those 3 errors before any
+interaction; the third (`TypeError: Cannot read properties of undefined
+(reading 'load')`) appears after *either* `#cookie-chiudi` or
+`#cookie-allowed-desktop` ("Acconsento") is clicked - a pre-existing script
+issue triggered by any banner dismissal, the same category already
+catalogued for osano.com/nzz.ch above.
+
+**`skroutz_cookie_message`** - a different flavour of the same trap: the
+genuine first-layer refusal button carries the id `#accept-essential`
+(reads, out of context, as if it meant "accept only essential cookies") but
+its actual displayed text is "Δε συμφωνώ" ("I do not agree") - an
+unambiguous refusal. The real accept button, confusingly, is `#accept-all`
+with text "Συμφωνώ" ("I agree"). Rather than anchor on either of these
+in-house, apparently-arbitrarily-named ids, the flow is anchored on the
+confirmed live wording via `textMatchRef: "rejectAll"` (labels.json's Greek
+`rejectAll` list extended with "Δε συμφωνώ"/"Δεν συμφωνώ", confirmed live),
+scoped to the message container (`.js-global-skrp-messages button`) - so it
+keeps working even if a future deploy swaps which id maps to which button,
+which a dedicated adversarial test proves directly (constructing a DOM where
+the ids are deliberately swapped and confirming the flow still follows the
+text, not the id). `tools/verify-rules.mjs --site skroutz.gr --execute`
+flagged "contenuto sparito, navigazione persa" (textLength 8205→287,
+linkCount 770→2) - **isolated by experiment, and it is not this rule**:
+a Cloudflare "security verification in progress" interstitial (visible in
+the resulting page text, with its own Ray ID) replaced the entire page after
+the click. A fresh baseline visit immediately after loaded cleanly with no
+click at all, and clicking `#accept-all` ("Συμφωνώ", accept) instead
+reproduced the *identical* Cloudflare interstitial. This is bot-defence
+reacting to the automated session, the same category already catalogued for
+onetrust.com/ikea.com/techcrunch.com above, not a defect in the selector or
+the click sequencing.
+
+### CookieFirst (`cookiefirst`) - confidence ALTA, own site
+
+Container `<dialog class="cookiefirst-root" data-testid="rootContainer">`,
+light DOM. Every button's own CSS-module class (`cf2Lf6`, `cf8Oal`, etc.) is
+a per-build hash and is never referenced; the flow anchors on the vendor's
+own stable, self-describing attribute pair instead -
+`data-testid="actionButton-reject"` / `data-cookiefirst-action="reject"` -
+confirmed identical live. One non-obvious finding worth recording: after a
+successful reject, `.cookiefirst-root`'s `data-testid="rootContainer"`
+persists in the DOM (the widget swaps its own content down to a small
+"reopen consent settings" affordance rather than removing the root
+element), so `cmpId` naturally stops matching afterward *only* because the
+`[data-cookiefirst-action="reject"]` button itself is gone from that
+persisted root - both `detect` selectors are still required precisely so
+this self-clears correctly rather than reporting a false continued match on
+one selector alone. `tools/verify-rules.mjs --execute`: `after.cmpId: null`,
+zero page errors, flagged "scroll bloccato" - **isolated by experiment**:
+clicking "Accept" instead leaves the identical `body{overflow-y: hidden}`
+stuck, the same pre-existing-cleanup-bug category already catalogued for
+sparkasse.de/vodafone.it/independent.co.uk above.
+
+### Secure Privacy (`secureprivacy`) - confidence MEDIA-ALTA, one confirmed
+### live run, banner frequency-capped on repeat visits
+
+Renders inside a same-origin `srcdoc` iframe (reachable the same
+frame-by-frame way as every other iframe-based rule in this file - no
+`frame:` traversal needed or used). First layer: `#sp-accept` / `#sp-decline`
+/ `#sp-customize`, each carrying a self-describing `data-sp-onclick`
+attribute confirming its exact behaviour
+(`sp.saveAllConsents('declineAll', 'cb')` for `#sp-decline`) - about as
+strong a non-guessed anchor as an in-house id gets. One full click-through
+was confirmed live in this session: banner present, `#sp-decline` clicked,
+banner gone, `scrollLocked` unaffected (was already `false`), zero page
+errors. Every subsequent visit in the same session found `#main-cookie-banner`
+entirely absent from the DOM (not merely empty, as with axeptio.eu above -
+genuinely never created), even after waits up to 20s - consistent with a
+frequency cap or similar suppression after repeated automated visits from
+the same address, the same category already documented for
+sparkasse.de/dm.de/windtre.it, not evidence against the rule. Shipped on the
+one clean confirmed run rather than chased further, per this session's
+"2-3 attempts, then move on" instruction.
+
+### bmw.de - re-confirmed, not re-chased
+
+Already documented above (`rulesetVersion` 6 section): no banner renders in
+this session's headless environment either, consistent with the existing
+note's own hedge ("plausibly geo/bot-gated for a non-residential IP").
+Nothing new to add; not worth further time per this session's own
+instruction.
+
+### Control sites for Group B
+
+No existing CMP entry was modified in this group - every rule above is a
+brand-new `id`, so there was no shared entry whose control sites needed
+re-checking (the requirement to re-verify a control site applies when an
+*existing* entry's `detect`/`flow` is edited, per this session's
+instructions; none was).

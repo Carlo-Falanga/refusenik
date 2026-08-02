@@ -155,6 +155,82 @@ describe('Sourcepoint', () => {
   });
 });
 
+describe('Sourcepoint (sourcepoint_manage_reject: no direct reject in the first layer, real reject behind Options/Personalizza)', () => {
+  test('detect matches a first layer with only Options/Personalizza (sp_choice_type_12) and Agree (sp_choice_type_11), no sp_choice_type_13', () => {
+    const document = domWithBody(`
+      <div class="message-container">
+        <button class="sp_choice_type_12">Personalizzare i cookie</button>
+        <button class="sp_choice_type_11">Sì, sono soddisfatto</button>
+      </div>
+    `);
+    const cmp = detectCMP(resolved, document);
+    assert.ok(cmp);
+    assert.equal(cmp.id, 'sourcepoint_manage_reject');
+  });
+
+  test('flow opens Options/Personalizza (sp_choice_type_12) and never clicks Agree/Accept when no direct reject exists yet', async () => {
+    const cmp = findCmp('sourcepoint_manage_reject');
+    const document = domWithBody(`
+      <div class="message-container">
+        <button class="sp_choice_type_12">Personalizzare i cookie</button>
+        <button class="sp_choice_type_11">Sì, sono soddisfatto</button>
+      </div>
+    `);
+    let manageClicked = false;
+    let agreeClicked = false;
+    document.querySelector('.sp_choice_type_12').addEventListener('click', () => { manageClicked = true; });
+    document.querySelector('.sp_choice_type_11').addEventListener('click', () => { agreeClicked = true; });
+
+    await runFlow(cmp.flow, document);
+
+    assert.equal(manageClicked, true, 'expected the flow to open Options/Personalizza (sp_choice_type_12)');
+    assert.equal(agreeClicked, false, 'the flow must never click the Agree/Accept button (sp_choice_type_11)');
+  });
+
+  test('flow clicks the genuine reject-all button directly when this frame already is the privacy-manager second layer (sp_choice_type_REJECT_ALL, no sp_choice_type_12 here)', async () => {
+    // Mirrors what tools/verify-rules.mjs actually observed live on calciomercato.com
+    // and sourcepoint.com: the privacy-manager panel opened by sp_choice_type_12
+    // renders in a SEPARATE iframe with its own document, which - because the
+    // extension's content script runs in every frame - gets its own independent
+    // detect+flow run against exactly this shape of DOM.
+    const cmp = findCmp('sourcepoint_manage_reject');
+    const document = domWithBody(`
+      <div class="message-container">
+        <button class="sp_choice_type_REJECT_ALL">Rifiuta tutto</button>
+        <button class="sp_choice_type_SAVE_AND_EXIT">Conferma le mie scelte</button>
+        <button class="sp_choice_type_ACCEPT_ALL">Accetta Tutto</button>
+      </div>
+    `);
+    let rejectClicked = false;
+    let acceptClicked = false;
+    document.querySelector('.sp_choice_type_REJECT_ALL').addEventListener('click', () => { rejectClicked = true; });
+    document.querySelector('.sp_choice_type_ACCEPT_ALL').addEventListener('click', () => { acceptClicked = true; });
+
+    await runFlow(cmp.flow, document);
+
+    assert.equal(rejectClicked, true);
+    assert.equal(acceptClicked, false, 'the flow must never click Accept All, even though it shares no distinguishing wrapper with Reject All');
+  });
+
+  test('adversarial: when a Pur-Abo consent-or-pay marker (sp_choice_type_9) is also present, sourcepoint_consent_or_pay must win the priority tie, not sourcepoint_manage_reject', () => {
+    // A hypothetical deployment offering both an Options/Personalizza button
+    // AND the Pur-Abo third-choice marker in the same first layer must never
+    // let the lower-priority, generically-actionable entry win: doing so would
+    // silently reclassify a real consent-or-pay wall as "we tried to refuse
+    // it", instead of correctly recognising it and doing nothing.
+    const document = domWithBody(`
+      <div class="message-container">
+        <button class="sp_choice_type_12">Einstellungen</button>
+        <button class="sp_choice_type_9">Jetzt abonnieren</button>
+      </div>
+    `);
+    const cmp = detectCMP(resolved, document);
+    assert.ok(cmp);
+    assert.equal(cmp.id, 'sourcepoint_consent_or_pay');
+    assert.equal(isActionableKind(cmp.kind), false);
+  });
+});
+
 describe('Complianz', () => {
   test('detect matches a minimal cmplz-cookiebanner DOM', () => {
     const document = domWithBody(`
