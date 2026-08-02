@@ -10,10 +10,18 @@
  *   node tools/verify-rules.mjs --execute       # also run the refusal flow
  *   node tools/verify-rules.mjs --headed        # watch it happen
  *   node tools/verify-rules.mjs --site bbc.com  # single site
+ *   node tools/verify-rules.mjs --sites plan-queue.json
+ *     # reads the site list from verification/plan-queue.json instead of
+ *     # tools/verify-sites.json - a bare name is looked up under
+ *     # verification/, which is exactly where sweep-plan.mjs writes its tiers
+ *     # (plan-sentinel.json, plan-queue.json, ...), so a plan produced there
+ *     # can be fed straight into a run without copying anything by hand. An
+ *     # absolute or cwd-relative path also works.
  *   node tools/verify-rules.mjs --resume sweep-v3.json --out sweep-v4.json
  *     # picks up a sweep that was cut short: sites that already have a real
- *     # verdict (anything but NON PROVATO) in verification/sweep-v3.json are
- *     # skipped, everything else is (re)tried, and the union of both is
+ *     # verdict (anything but NON PROVATO or ERRORE) in
+ *     # verification/sweep-v3.json are skipped, everything else - untested,
+ *     # NON PROVATO or ERRORE alike - is (re)tried, and the union of both is
  *     # written to verification/sweep-v4.json - see --resume's own section
  *     # below for why this exists.
  *
@@ -70,9 +78,9 @@
  */
 
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, isAbsolute } from 'node:path';
 import { build } from 'esbuild';
 
 import { resolveTextMatchRefs } from '../src/rules/expandTextMatchRefs.js';
@@ -100,6 +108,12 @@ const OUT_NAME = argValue('--out', 'report.json');
 // Name of a previous report under verification/ to resume from; see the
 // "--resume" section of main() for what "resume" actually means here.
 const RESUME_NAME = argValue('--resume', null);
+// Alternate site list to sweep instead of tools/verify-sites.json - see
+// resolveSitesPath() for how the name is turned into an actual path. Exists
+// so the tiered plans sweep-plan.mjs writes to verification/ (plan-sentinel.json,
+// plan-queue.json, ...) can be handed straight to a run instead of only ever
+// being usable as documentation of what a full sweep would need to cover.
+const SITES_NAME = argValue('--sites', null);
 const NAV_TIMEOUT = 60_000;
 // How many sites a single BrowserContext is allowed to process before a
 // worker closes it and opens a fresh one. Consent banners are dismissed by
@@ -259,9 +273,64 @@ function loadRuleset() {
   return resolveTextMatchRefs(rules, labels);
 }
 
+/**
+ * Turns a --sites value into an actual path the same tolerant way regardless
+ * of how it was spelled: a full path, something relative to wherever this
+ * was launched from, or - the case this flag exists for - the bare name of a
+ * tier plan sweep-plan.mjs already wrote under verification/ (e.g.
+ * "plan-sentinel.json"), so that plan can be pointed at directly instead of
+ * ever having to be copied over verify-sites.json by hand.
+ */
+function resolveSitesPath(name) {
+  if (isAbsolute(name)) {
+    if (existsSync(name)) return name;
+  } else {
+    const relativeToCwd = join(process.cwd(), name);
+    if (existsSync(relativeToCwd)) return relativeToCwd;
+  }
+  const insideVerification = join(OUT_DIR, name);
+  if (existsSync(insideVerification)) return insideVerification;
+  console.error(`! file dei siti non trovato: "${name}" (provato come percorso assoluto, relativo alla cartella corrente, e dentro verification/)`);
+  process.exit(1);
+}
+
 function loadSites() {
-  const sites = JSON.parse(readFileSync(join(here, 'verify-sites.json'), 'utf8'));
+  const sitesPath = SITES_NAME ? resolveSitesPath(SITES_NAME) : join(here, 'verify-sites.json');
+  const sites = JSON.parse(readFileSync(sitesPath, 'utf8'));
+  if (!Array.isArray(sites) || sites.some((s) => !s || typeof s.slug !== 'string' || typeof s.url !== 'string')) {
+    console.error(`! ${sitesPath} non e' un elenco valido di siti: serve un array di oggetti con almeno "slug" e "url" (lo stesso formato di verify-sites.json)`);
+    process.exit(1);
+  }
   return ONLY ? sites.filter((s) => s.url.includes(ONLY)) : sites;
+}
+
+/**
+ * Loads the report named by --resume, keyed by url, so main() can tell which
+ * sites already have a verdict worth keeping. Resolved under verification/
+ * exactly like OUT_NAME - a resume always reads and writes reports from the
+ * same place. Returns an empty map when --resume was not passed at all,
+ * which keeps the caller from needing a separate "was this even requested"
+ * branch.
+ */
+function loadResume() {
+  if (!RESUME_NAME) return new Map();
+  const resumePath = join(OUT_DIR, RESUME_NAME);
+  let records;
+  try {
+    records = JSON.parse(readFileSync(resumePath, 'utf8'));
+  } catch (error) {
+    console.error(`! impossibile leggere il report da riprendere verification/${RESUME_NAME}: ${error.message}`);
+    process.exit(1);
+  }
+  if (!Array.isArray(records)) {
+    console.error(`! verification/${RESUME_NAME} non contiene un array di record; impossibile riprenderlo.`);
+    process.exit(1);
+  }
+  const byUrl = new Map();
+  for (const record of records) {
+    if (record && record.url) byUrl.set(record.url, record);
+  }
+  return byUrl;
 }
 
 /** Bundles the probe from the real engine sources so nothing is reimplemented. */
@@ -547,6 +616,7 @@ async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
   const ruleset = loadRuleset();
   const sites = loadSites();
+  const resumeByUrl = loadResume();
   const probeSource = await buildProbe();
   const total = sites.length;
   const outPath = join(OUT_DIR, OUT_NAME);
@@ -616,7 +686,28 @@ async function main() {
   // specifically so a site whose attempt was cut short by a dead browser can
   // be pushed back onto it and actually get tried again, instead of the
   // sweep either losing it or - worse - reporting it as a real failure.
-  const queue = Array.from({ length: total }, (_, i) => i);
+  //
+  // With --resume, a site only skips the queue - and gets its prior record
+  // carried over untouched - when that record already holds a real verdict.
+  // NON PROVATO means the previous sweep never actually got to try it, and
+  // ERRORE means it was tried and abandoned (a timeout, a dead browser); both
+  // are exactly the sites resuming exists to give another shot, so neither is
+  // treated as "already resolved" here.
+  const queue = [];
+  let inheritedCount = 0;
+  for (let i = 0; i < total; i += 1) {
+    const prior = resumeByUrl.get(sites[i].url);
+    if (prior && prior.verdict && prior.verdict !== 'NON PROVATO' && prior.verdict !== 'ERRORE') {
+      results[i] = prior;
+      completed += 1;
+      inheritedCount += 1;
+    } else {
+      queue.push(i);
+    }
+  }
+  if (RESUME_NAME) {
+    console.log(`--resume ${RESUME_NAME}: ${inheritedCount} siti ereditati con esito gia' reale, ${queue.length} da (ri)provare.`);
+  }
 
   // browserGeneration marks which launchBrowser() call is currently live. A
   // worker records the generation its context came from; if that number has
@@ -630,6 +721,11 @@ async function main() {
   // restartInFlight makes sure only the first one actually relaunches while
   // the rest await that same relaunch instead of racing each other.
   let restartInFlight = null;
+  // Wall-clock time any site last finished, anywhere in the pool. Tracked
+  // independently of browserRestarts/giveUp so the watchdog below has a
+  // signal that does not depend on anything having thrown - see its own
+  // comment for what it is actually guarding against.
+  let lastProgressAt = Date.now();
 
   async function doRestart() {
     browserRestarts += 1;
@@ -639,7 +735,13 @@ async function main() {
       return false;
     }
     console.log(`\n! il browser si e' chiuso inaspettatamente, riavvio ${browserRestarts}/${MAX_BROWSER_RESTARTS}...`);
-    await browser.close().catch(() => {});
+    // A mute-but-alive browser is exactly what doRestart() exists to recover
+    // from, which makes this close() the single worst place in the file to
+    // trust without a ceiling: if the old browser will not even cooperate on
+    // the way out, launchBrowser() below still has to be reached regardless.
+    // The .catch() is kept for the same reason as everywhere else - a close
+    // that will never succeed must not stop the restart it is blocking.
+    await raceTimeout(browser.close(), BROWSER_CLOSE_TIMEOUT_MS, 'chiusura browser (riavvio)').catch(() => {});
     browser = await launchBrowser();
     browserGeneration += 1;
     return true;
@@ -661,9 +763,60 @@ async function main() {
     writeFileSync(outPath, JSON.stringify(results.filter(Boolean), null, 2));
   }
 
+  // The 2026-08 stall this file was rewritten for never threw - every
+  // page/context/browser operation above now has its own ceiling, but that
+  // only bounds one hang at a time, and does nothing if the whole pool
+  // happens to be waiting on one of those ceilings at once because the
+  // browser underneath all of them has gone quiet. This is the independent
+  // check for exactly that: if no worker has finished a single site in
+  // WATCHDOG_STALL_MS, it is no longer plausible that one difficult site is
+  // to blame, so the watchdog forces the same restart a thrown "browser is
+  // dead" error would have. That either gets the sweep moving again on a
+  // fresh browser, or - once MAX_BROWSER_RESTARTS is exhausted - sets giveUp
+  // and lets the pool wind down through the same ordered path a real crash
+  // does: workers exit their loop as their current operation's own ceiling
+  // expires, every slot still empty afterwards becomes NON PROVATO, and the
+  // partial report is written, instead of the process just sitting there.
+  const watchdogTimer = setInterval(() => {
+    if (giveUp) return;
+    if (Date.now() - lastProgressAt <= WATCHDOG_STALL_MS) return;
+    console.log(`\n! nessun sito completato da oltre ${Math.round(WATCHDOG_STALL_MS / 1000)}s: il browser sembra vivo ma muto, forzo lo stesso riavvio che scatterebbe su un errore.`);
+    // Whatever comes next - a fresh browser, or the ordered shutdown
+    // doRestart() falls back to once restarts run out - deserves its own
+    // full window before being judged too, rather than this firing again on
+    // the very next poll.
+    lastProgressAt = Date.now();
+    recoverFromBrowserDeath().catch(() => {});
+  }, WATCHDOG_POLL_MS);
+
   async function worker() {
-    let context = await browser.newContext(contextOptions);
+    // The startup open is racy the same way the recycle and post-restart
+    // ones already are: if the browser is mute right as the pool spins up,
+    // an unguarded newContext() here has no default timeout of its own and
+    // would leave this worker's promise pending forever, tied to a browser
+    // instance the watchdog can relaunch but can never make this specific
+    // call return - which is exactly the silent stall the rest of this file
+    // exists to prevent.
+    let context;
     let generation = browserGeneration;
+    try {
+      context = await raceTimeout(browser.newContext(contextOptions), HANDLE_OPEN_TIMEOUT_MS, 'apertura contesto (avvio worker)', { browserHung: true });
+    } catch (error) {
+      if (isBrowserUnresponsive(error) && generation === browserGeneration) {
+        const recovered = await recoverFromBrowserDeath();
+        if (!recovered) return; // restart budget exhausted; nothing was ever dequeued, so this worker simply never starting loses no site
+      }
+      try {
+        context = await raceTimeout(browser.newContext(contextOptions), HANDLE_OPEN_TIMEOUT_MS, 'apertura contesto (avvio worker)', { browserHung: true });
+        generation = browserGeneration;
+      } catch {
+        // Still no usable context after a restart attempt (or the failure
+        // was never a browser death to begin with); ending this worker here
+        // costs only its own concurrency slot - no site has been taken off
+        // the queue yet for the other workers to lose.
+        return;
+      }
+    }
     // Sites handled by this context since it was last opened; recycled every
     // CONTEXT_RECYCLE_SITES, see the constant's own comment for why.
     let sinceRecycle = 0;
@@ -678,7 +831,17 @@ async function main() {
         try {
           record = await probeSite(context, site, ruleset, probeSource);
         } catch (error) {
-          if (isBrowserDeadError(error)) {
+          // probeSite() only ever rethrows (rather than swallowing into an
+          // ERRORE record) when it already decided the failure was not the
+          // site's fault - see isBrowserUnresponsive() at its own throw site.
+          // Checking the narrower isBrowserDeadError() here missed exactly
+          // the case that check was added for: a raceTimeout() that expired
+          // on browser/context/page-lifecycle plumbing (tagged browserHung)
+          // rather than on an actual "Target closed" - such an error has
+          // nothing to do with site.url, so recognising only the literal
+          // thrown message and falling through to the ERRORE backstop below
+          // would silently misfile a dead-browser stall as a bad site.
+          if (isBrowserUnresponsive(error)) {
             if (generation === browserGeneration) {
               const recovered = await recoverFromBrowserDeath();
               if (!recovered) {
@@ -693,8 +856,22 @@ async function main() {
             }
             // Either this worker triggered the restart, or another one beat
             // it to it while this one was still awaiting its own failure -
-            // either way there is a live browser now to get a context from.
-            context = await browser.newContext(contextOptions);
+            // either way there is a live browser now to get a context from,
+            // but that hand-off is raced too: a browser that comes back up
+            // just to immediately go quiet again is indistinguishable from
+            // one that never came back at all, and must not be allowed to
+            // hang this worker either.
+            try {
+              context = await raceTimeout(
+                browser.newContext(contextOptions),
+                HANDLE_OPEN_TIMEOUT_MS,
+                'apertura contesto (dopo riavvio)',
+                { browserHung: true },
+              );
+            } catch {
+              queue.push(index); // still give the site a real attempt later
+              break; // nothing left to retry with here; end this worker cleanly
+            }
             generation = browserGeneration;
             sinceRecycle = 0;
             queue.push(index); // give the site a real attempt instead of losing it
@@ -716,6 +893,7 @@ async function main() {
         results[index] = record;
         completed += 1;
         sinceRecycle += 1;
+        lastProgressAt = Date.now(); // fed to the watchdog below
 
         const found = record.before && record.before.cmpId ? record.before.cmpId : '-';
         const ms = record.detectMs !== null && record.detectMs !== undefined ? `${(record.detectMs / 1000).toFixed(1)}s` : '';
@@ -728,45 +906,83 @@ async function main() {
         persistResults();
 
         if (sinceRecycle >= CONTEXT_RECYCLE_SITES) {
+          // The periodic recycle this constant is named for - both closing
+          // the old context and opening its replacement used to be awaited
+          // with no ceiling at all, which is precisely the scenario this
+          // whole file defends against: a mute-but-alive browser would hang
+          // this forever, and unlike a single site wedging on SITE_BUDGET_MS,
+          // there is no per-site budget racing a context recycle to catch it.
           try {
-            await context.close().catch(() => {});
-            context = await browser.newContext(contextOptions);
+            await raceTimeout(context.close(), HANDLE_CLOSE_TIMEOUT_MS, 'chiusura contesto (riciclo)', { browserHung: true }).catch(() => {});
+            context = await raceTimeout(browser.newContext(contextOptions), HANDLE_OPEN_TIMEOUT_MS, 'apertura contesto (riciclo)', { browserHung: true });
             generation = browserGeneration;
           } catch (error) {
-            if (isBrowserDeadError(error) && generation === browserGeneration) {
+            if (isBrowserUnresponsive(error) && generation === browserGeneration) {
               const recovered = await recoverFromBrowserDeath();
               if (!recovered) break;
             }
-            context = await browser.newContext(contextOptions);
-            generation = browserGeneration;
+            try {
+              context = await raceTimeout(browser.newContext(contextOptions), HANDLE_OPEN_TIMEOUT_MS, 'apertura contesto (riciclo)', { browserHung: true });
+              generation = browserGeneration;
+            } catch {
+              // Recycling never recovered even after a restart attempt;
+              // ending this worker cleanly beats looping on a browser that
+              // keeps refusing to hand out a usable context.
+              break;
+            }
           }
           sinceRecycle = 0;
         }
       }
     } finally {
-      await context.close().catch(() => {});
+      // Same reasoning as the recycle above: closing the final context on the
+      // way out must not be trusted to resolve on its own.
+      await raceTimeout(context.close(), HANDLE_CLOSE_TIMEOUT_MS, 'chiusura contesto (fine worker)').catch(() => {});
     }
   }
 
   const workerCount = Math.min(CONCURRENCY, total) || 1;
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  // Wrapped in try/finally rather than just awaited: a worker is meant to
+  // absorb its own failures into an ERRORE record or a clean return, but if
+  // one still propagates an exception (persistResults()'s writeFileSync
+  // failing is the realistic case, since nothing shields that one), letting
+  // it reject Promise.all unguarded would skip everything below - the
+  // watchdog's timer, the NON PROVATO hole-filling, and the final report
+  // write - throwing away an hours-long sweep's results over the very last
+  // site instead of just the one that actually failed. main().catch() below
+  // still reports the error and exits non-zero either way; what this exists
+  // to save is the report that would otherwise vanish with it.
+  try {
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  } finally {
+    // The sweep is over, one way or another; nothing left for the watchdog to
+    // guard, and an uncleared setInterval is exactly the kind of thing that
+    // keeps a Node process alive forever after everything else is done.
+    clearInterval(watchdogTimer);
 
-  // Anything still without a record at this point was queued (or in flight)
-  // when the restart budget ran out - the sweep genuinely never tested it, so
-  // it gets its own honest verdict instead of a false ERRORE or a silent gap.
-  for (let i = 0; i < total; i += 1) {
-    if (!results[i]) {
-      results[i] = {
-        url: sites[i].url,
-        expect: sites[i].expect || null,
-        verdict: 'NON PROVATO',
-        error: `sweep interrotto dopo ${browserRestarts} riavvii del browser`,
-      };
+    // Anything still without a record at this point was queued (or in flight)
+    // when the restart budget ran out - the sweep genuinely never tested it,
+    // so it gets its own honest verdict instead of a false ERRORE or a silent
+    // gap.
+    for (let i = 0; i < total; i += 1) {
+      if (!results[i]) {
+        results[i] = {
+          url: sites[i].url,
+          expect: sites[i].expect || null,
+          verdict: 'NON PROVATO',
+          error: `sweep interrotto dopo ${browserRestarts} riavvii del browser`,
+        };
+      }
     }
-  }
 
-  await browser.close().catch(() => {});
-  persistResults();
+    // Raced for the same reason doRestart()'s own browser.close() is: this
+    // finally block is exactly where an unresponsive browser is likeliest to
+    // still be sitting, and it must not be allowed to block the
+    // persistResults() call right after it - the one write this whole
+    // try/finally exists to guarantee.
+    await raceTimeout(browser.close(), BROWSER_CLOSE_TIMEOUT_MS, 'chiusura browser (fine sweep)').catch(() => {});
+    persistResults();
+  }
 
   const ok = results.filter((r) => r.verdict === 'ok').length;
   console.log(`\n${ok}/${results.length} regole confermate sul campo`);
